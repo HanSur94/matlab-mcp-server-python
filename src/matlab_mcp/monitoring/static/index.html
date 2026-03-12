@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="/dashboard/static/style.css">
     <script>
         // Load Plotly.js: local bundle first, CDN fallback
-        // Uses a promise so dashboard.js can await readiness
         window.plotlyReady = new Promise(function(resolve) {
             var local = document.createElement('script');
             local.src = '/dashboard/static/vendor/plotly.min.js';
@@ -29,6 +28,7 @@
         <div class="status">
             <span class="dot healthy" id="status-dot"></span>
             <span id="status-text">Healthy</span>
+            <span class="separator">|</span>
             <span id="uptime">Up 0s</span>
         </div>
     </div>
@@ -39,12 +39,24 @@
             <div class="value" id="gauge-pool">0%</div>
         </div>
         <div class="gauge-card">
+            <div class="label">Engines (busy/total)</div>
+            <div class="value" id="gauge-engines">0/0</div>
+        </div>
+        <div class="gauge-card">
             <div class="label">Active Jobs</div>
             <div class="value" id="gauge-jobs">0</div>
         </div>
         <div class="gauge-card">
+            <div class="label">Jobs Completed</div>
+            <div class="value" id="gauge-completed">0</div>
+        </div>
+        <div class="gauge-card">
             <div class="label">Active Sessions</div>
             <div class="value" id="gauge-sessions">0</div>
+        </div>
+        <div class="gauge-card">
+            <div class="label">Avg Execution</div>
+            <div class="value" id="gauge-avg-exec">-</div>
         </div>
         <div class="gauge-card">
             <div class="label">Errors/min</div>
@@ -62,28 +74,28 @@
     <div class="charts">
         <div class="chart-card"><h3>Pool Utilization</h3><div id="chart-pool"></div></div>
         <div class="chart-card"><h3>Job Throughput</h3><div id="chart-jobs"></div></div>
-        <div class="chart-card"><h3>Execution Time</h3><div id="chart-exec"></div></div>
+        <div class="chart-card"><h3>Execution Time (Avg / P95)</h3><div id="chart-exec"></div></div>
         <div class="chart-card"><h3>Active Sessions</h3><div id="chart-sessions"></div></div>
         <div class="chart-card"><h3>Memory Usage</h3><div id="chart-memory"></div></div>
+        <div class="chart-card"><h3>Error Count</h3><div id="chart-errors"></div></div>
     </div>
 
     <div class="events-section">
         <div class="events-card">
-            <h3>Recent Events
+            <h3>MATLAB Execution Log
                 <select id="event-filter" onchange="filterEvents(this.value)">
-                    <option value="">All</option>
-                    <option value="job_completed">job_completed</option>
-                    <option value="job_failed">job_failed</option>
-                    <option value="engine_scale_up">engine_scale_up</option>
-                    <option value="engine_scale_down">engine_scale_down</option>
-                    <option value="engine_crash">engine_crash</option>
-                    <option value="blocked_function">blocked_function</option>
-                    <option value="health_check_fail">health_check_fail</option>
-                    <option value="session_created">session_created</option>
+                    <option value="">All Events</option>
+                    <option value="job_completed">Completed</option>
+                    <option value="job_failed">Failed</option>
+                    <option value="session_created">Sessions</option>
+                    <option value="engine_scale_up">Scale Up</option>
+                    <option value="engine_scale_down">Scale Down</option>
+                    <option value="blocked_function">Blocked</option>
+                    <option value="health_check_fail">Health Fail</option>
                 </select>
             </h3>
             <table class="events-table">
-                <thead><tr><th>Time</th><th>Type</th><th>Details</th></tr></thead>
+                <thead><tr><th>Time</th><th>Type</th><th>Code</th><th>Output</th><th>Duration</th></tr></thead>
                 <tbody id="events-body"></tbody>
             </table>
         </div>

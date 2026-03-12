@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import io
 import logging
 import os
 import time
@@ -78,9 +79,12 @@ class JobExecutor:
         # 3. Inject job context
         self._inject_job_context(engine, job, temp_dir)
 
-        # 4. Start background execution
+        # 4. Start background execution with stdout/stderr capture
+        job._stdout = io.StringIO()
+        job._stderr = io.StringIO()
         try:
-            future = engine.execute(code, background=True)
+            future = engine.execute(code, background=True,
+                                    stdout=job._stdout, stderr=job._stderr)
             job.future = future
         except Exception as exc:
             job.mark_failed(
@@ -89,7 +93,11 @@ class JobExecutor:
             )
             await self._pool.release(engine)
             if self._collector:
-                self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
+                self._collector.record_event("job_failed", {
+                    "job_id": job.job_id,
+                    "code": code[:500],
+                    "error": str(exc)[:500],
+                })
             return self._error_result(job)
 
         # 5. Wait for sync_timeout
@@ -106,7 +114,12 @@ class JobExecutor:
                 await self._pool.release(engine)
                 if self._collector:
                     elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
-                    self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
+                    self._collector.record_event("job_completed", {
+                        "job_id": job.job_id,
+                        "execution_ms": elapsed_ms,
+                        "code": code[:500],
+                        "output": (result.get("text") or "")[:2000],
+                    })
                 return {"status": "completed", "job_id": job.job_id, **result}
             except (TimeoutError, concurrent.futures.TimeoutError, asyncio.TimeoutError):
                 # Promote to async
@@ -121,7 +134,11 @@ class JobExecutor:
                 )
                 await self._pool.release(engine)
                 if self._collector:
-                    self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
+                    self._collector.record_event("job_failed", {
+                        "job_id": job.job_id,
+                        "code": code[:500],
+                        "error": str(exc)[:500],
+                    })
                 return self._error_result(job)
         else:
             # sync_timeout == 0: immediately promote to async
@@ -171,7 +188,12 @@ class JobExecutor:
             job.mark_completed(result)
             if self._collector:
                 elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
-                self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
+                self._collector.record_event("job_completed", {
+                    "job_id": job.job_id,
+                    "execution_ms": elapsed_ms,
+                    "code": job.code[:500] if job.code else "",
+                    "output": (result.get("text") or "")[:2000],
+                })
         except asyncio.CancelledError:
             job.mark_cancelled()
         except Exception as exc:
@@ -180,7 +202,11 @@ class JobExecutor:
                 message=str(exc),
             )
             if self._collector:
-                self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
+                self._collector.record_event("job_failed", {
+                    "job_id": job.job_id,
+                    "code": job.code[:500] if job.code else "",
+                    "error": str(exc)[:500],
+                })
         finally:
             try:
                 await self._pool.release(engine)
@@ -203,10 +229,17 @@ class JobExecutor:
         - files: any files written to temp_dir
         - warnings / errors: empty lists by default (extended by real engine)
         """
-        # Capture text output
+        # Capture text output from StringIO buffers
         text = ""
         try:
-            text = getattr(engine._engine, "last_output", "") or ""
+            stdout_buf = getattr(job, "_stdout", None)
+            if stdout_buf is not None:
+                text = stdout_buf.getvalue()
+            stderr_buf = getattr(job, "_stderr", None)
+            if stderr_buf is not None:
+                err_text = stderr_buf.getvalue()
+                if err_text:
+                    text = text + "\n[stderr]\n" + err_text if text else err_text
         except Exception:
             pass
 
@@ -215,7 +248,7 @@ class JobExecutor:
         try:
             for k, v in engine._engine.workspace.items():
                 if not k.startswith("__mcp_"):
-                    variables[k] = v
+                    variables[k] = self._safe_serialize(v)
         except Exception:
             pass
 
@@ -243,6 +276,35 @@ class JobExecutor:
             "warnings": [],
             "errors": [],
         }
+
+    @staticmethod
+    def _safe_serialize(value: Any) -> Any:
+        """Convert a MATLAB workspace value to a JSON-serializable Python type."""
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, (list, tuple)):
+            return [JobExecutor._safe_serialize(v) for v in value]
+        if isinstance(value, dict):
+            return {k: JobExecutor._safe_serialize(v) for k, v in value.items()}
+        # numpy arrays
+        try:
+            import numpy as np
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            if isinstance(value, (np.integer, np.floating)):
+                return value.item()
+        except ImportError:
+            pass
+        # MATLAB arrays / matrices
+        try:
+            if hasattr(value, '_data'):
+                return list(value._data)
+            if hasattr(value, 'tolist'):
+                return value.tolist()
+        except Exception:
+            pass
+        # Fallback: repr
+        return repr(value)
 
     @staticmethod
     def _error_result(job: Job) -> dict:

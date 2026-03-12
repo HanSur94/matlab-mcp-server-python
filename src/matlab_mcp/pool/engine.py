@@ -132,7 +132,8 @@ class MatlabEngineWrapper:
         except Exception:
             return False
 
-    def execute(self, code: str, nargout: int = 0, background: bool = False) -> Any:
+    def execute(self, code: str, nargout: int = 0, background: bool = False,
+                stdout: Any = None, stderr: Any = None) -> Any:
         """Run MATLAB code on the engine.
 
         Parameters
@@ -140,10 +141,17 @@ class MatlabEngineWrapper:
         code:       MATLAB code to evaluate.
         nargout:    Number of output arguments expected.
         background: If True, return a future-like object immediately.
+        stdout:     Stream to capture standard output (e.g. ``io.StringIO``).
+        stderr:     Stream to capture standard error (e.g. ``io.StringIO``).
         """
         if self._engine is None:
             raise RuntimeError(f"[{self.engine_id}] Engine is not started")
-        return self._engine.eval(code, nargout=nargout, background=background)
+        kwargs: dict[str, Any] = {"nargout": nargout, "background": background}
+        if stdout is not None:
+            kwargs["stdout"] = stdout
+        if stderr is not None:
+            kwargs["stderr"] = stderr
+        return self._engine.eval(code, **kwargs)
 
     def reset_workspace(self) -> None:
         """Reset the MATLAB workspace to a clean state.
