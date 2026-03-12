@@ -29,7 +29,7 @@ A background asyncio task that samples server state at a configurable interval (
 | pool | busy_engines | `pool.get_status()` |
 | pool | max_engines | `pool.get_status()` |
 | pool | utilization_pct | `busy / total * 100` |
-| jobs | active_count | `tracker.list_jobs()` filtered by PENDING/RUNNING |
+| jobs | active_count | `tracker.list_jobs(session_id=None)` filtered by PENDING/RUNNING (server-wide, all sessions) |
 | jobs | completed_total | cumulative counter |
 | jobs | failed_total | cumulative counter |
 | jobs | cancelled_total | cumulative counter |
@@ -71,7 +71,7 @@ Discrete events are recorded to the `events` table when they occur (not on the s
 | `job_failed` | Job finishes with error | `{"job_id": "...", "error": "..."}` |
 | `health_check_fail` | Engine health check fails | `{"engine_id": "...", "error": "..."}` |
 
-**Session ID privacy:** Event details use `session_id_short` (last 8 characters of the session ID) to avoid leaking full session IDs in the dashboard and error logs.
+**Session ID privacy:** Event details use `session_id_short` (last 8 characters of the session ID) to avoid leaking full session IDs in the dashboard and error logs. The `details` JSON written to SQLite must never contain the full `session_id`.
 
 **Integration — collector injection pattern:**
 
@@ -87,7 +87,9 @@ class MatlabMCPServer:
         self.collector = MetricsCollector(config) if config.monitoring.enabled else None
         # Then components that use it
         self.pool = EnginePoolManager(config, collector=self.collector)
-        self.tracker = JobTracker(...)
+        self.tracker = JobTracker(
+            retention_seconds=config.sessions.job_retention_seconds
+        )  # JobTracker does NOT need the collector — events come from executor
         self.executor = JobExecutor(pool=self.pool, tracker=self.tracker, config=config, collector=self.collector)
         self.sessions = SessionManager(config, collector=self.collector)
         self.security = SecurityValidator(config.security, collector=self.collector)
@@ -95,6 +97,8 @@ class MatlabMCPServer:
 ```
 
 When `collector` is `None` (monitoring disabled), components skip the `record_event()` call — a simple `if self.collector:` guard at each call site.
+
+**`SessionManager` instrumentation:** Both `create_session()` and `get_or_create_default()` must call `collector.record_event("session_created", ...)` when they actually create a new session. `get_or_create_default()` is the primary path for stdio transport — if only `create_session()` is instrumented, `total_created` will be 0 for stdio deployments. The guard is: only record the event when a new session object is created, not when returning an existing one.
 
 ---
 
@@ -143,7 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
       "job_success_rate": 0.97,       # completed / (completed + failed) from events
       "avg_execution_ms": 2100,       # mean of jobs.avg_execution_ms metric samples
       "p95_execution_ms": 5400,       # mean of jobs.p95_execution_ms metric samples
-      "error_rate_per_minute": 0.08   # count of error events / time window in minutes
+      "error_rate_per_minute": 0.08   # count of error-class events / time window in minutes (uses same filter as get_error_log: job_failed, blocked_function, engine_crash, health_check_fail)
   }
   ```
 
@@ -235,6 +239,9 @@ Returns comprehensive metrics snapshot as JSON. Always `200`.
 
 ```python
 # Inside lifespan, after collector starts:
+monitoring_server = None
+monitoring_task = None
+
 if config.server.transport == "stdio" and config.monitoring.enabled:
     monitoring_app = create_monitoring_app(state)
     uvi_config = uvicorn.Config(monitoring_app, host="127.0.0.1", port=config.monitoring.http_port, log_level="warning")
@@ -242,7 +249,13 @@ if config.server.transport == "stdio" and config.monitoring.enabled:
     monitoring_task = asyncio.create_task(monitoring_server.serve())
 ```
 
-On shutdown, `monitoring_server.should_exit = True` and the task is awaited.
+On shutdown (in the `finally` block):
+```python
+if monitoring_server is not None:
+    monitoring_server.should_exit = True
+if monitoring_task is not None:
+    await monitoring_task
+```
 
 If `dashboard_enabled: false`, only `/health` and `/metrics` are served (no static files).
 
@@ -368,6 +381,8 @@ monitoring:
   http_port: 8766                # Dashboard/health port (stdio transport only)
 ```
 
+**Note on `http_port`:** This setting only applies to stdio transport. For SSE transport, `/health`, `/metrics`, and `/dashboard` are mounted on the same host:port as the main SSE server (configured via `server.host` and `server.port`). The `http_port` setting is ignored in SSE mode.
+
 Environment variable overrides follow existing pattern:
 ```bash
 MATLAB_MCP_MONITORING_ENABLED=true
@@ -439,7 +454,6 @@ monitoring = ["psutil>=5.9.0"]
 4. Mount HTTP routes on ASGI app (SSE) or start monitoring HTTP server (stdio)
 
 **Shutdown:**
-1. Stop collector background task
-2. Flush any pending writes
-3. Close SQLite connection
-4. Stop monitoring HTTP server (stdio only)
+1. Stop collector background task (cancel and await)
+2. Close SQLite connection (`await store.close()`)
+3. Stop monitoring HTTP server if running (stdio only — `monitoring_server.should_exit = True`, await task)
