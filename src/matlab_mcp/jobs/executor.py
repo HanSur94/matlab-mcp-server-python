@@ -37,10 +37,11 @@ class JobExecutor:
         The full :class:`~matlab_mcp.config.AppConfig` instance.
     """
 
-    def __init__(self, pool: Any, tracker: JobTracker, config: Any) -> None:
+    def __init__(self, pool: Any, tracker: JobTracker, config: Any, collector: Any = None) -> None:
         self._pool = pool
         self._tracker = tracker
         self._config = config
+        self._collector = collector
 
     # ------------------------------------------------------------------
     # Public API
@@ -101,6 +102,9 @@ class JobExecutor:
                 result = self._build_result(engine, raw_result, job, temp_dir)
                 job.mark_completed(result)
                 await self._pool.release(engine)
+                if self._collector:
+                    elapsed_ms = (job.completed_at - job.started_at).total_seconds() * 1000 if job.started_at and job.completed_at else 0
+                    self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
                 return {"status": "completed", "job_id": job.job_id, **result}
             except (TimeoutError, concurrent.futures.TimeoutError, asyncio.TimeoutError):
                 # Promote to async
@@ -114,6 +118,8 @@ class JobExecutor:
                     message=str(exc),
                 )
                 await self._pool.release(engine)
+                if self._collector:
+                    self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
                 return self._error_result(job)
         else:
             # sync_timeout == 0: immediately promote to async
@@ -161,6 +167,9 @@ class JobExecutor:
             )
             result = self._build_result(engine, raw_result, job, temp_dir)
             job.mark_completed(result)
+            if self._collector:
+                elapsed_ms = (job.completed_at - job.started_at).total_seconds() * 1000 if job.started_at and job.completed_at else 0
+                self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
         except asyncio.CancelledError:
             job.mark_cancelled()
         except Exception as exc:
@@ -168,6 +177,8 @@ class JobExecutor:
                 error_type=type(exc).__name__,
                 message=str(exc),
             )
+            if self._collector:
+                self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
         finally:
             try:
                 await self._pool.release(engine)

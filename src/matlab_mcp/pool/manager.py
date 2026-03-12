@@ -27,10 +27,11 @@ class EnginePoolManager:
         ``AppConfig`` instance.  Uses ``config.pool`` and ``config.workspace``.
     """
 
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any, collector: Any = None) -> None:
         self._config = config
         self._pool_config = config.pool
         self._workspace_config = config.workspace
+        self._collector = collector
 
         # All engines (available + busy)
         self._all_engines: List[MatlabEngineWrapper] = []
@@ -95,6 +96,8 @@ class EnginePoolManager:
                             total + 1, self._pool_config.max_engines)
                 engine = await self._start_engine_async()
                 engine.mark_busy()
+                if self._collector:
+                    self._collector.record_event("engine_scale_up", {"engine_id": engine.engine_id, "total_after": len(self._all_engines)})
                 return engine
 
         # At max capacity — wait for one to become available
@@ -160,6 +163,8 @@ class EnginePoolManager:
             healthy = await loop.run_in_executor(None, engine.health_check)
             if not healthy:
                 logger.warning("[%s] Health check failed; replacing", engine.engine_id)
+                if self._collector:
+                    self._collector.record_event("engine_crash", {"engine_id": engine.engine_id, "error": "health check failed"})
                 to_replace.append(engine)
                 continue
 
@@ -169,6 +174,8 @@ class EnginePoolManager:
                     and len(to_keep) + busy_count >= min_engines):
                 logger.info("[%s] Scaling down idle engine (idle %.0fs)",
                             engine.engine_id, engine.idle_seconds)
+                if self._collector:
+                    self._collector.record_event("engine_scale_down", {"engine_id": engine.engine_id, "total_after": total - 1})
                 to_remove.append(engine)
                 total -= 1
             else:
@@ -191,11 +198,13 @@ class EnginePoolManager:
         # Return healthy engines + replacements to queue
         for engine in to_keep:
             await self._available.put(engine)
-        for engine in new_engines:
-            if isinstance(engine, Exception):
-                logger.error("Replacement engine failed to start: %s", engine)
+        for old_engine, new_engine in zip(to_replace, new_engines):
+            if isinstance(new_engine, Exception):
+                logger.error("Replacement engine failed to start: %s", new_engine)
             else:
-                await self._available.put(engine)
+                if self._collector:
+                    self._collector.record_event("engine_replaced", {"old_id": old_engine.engine_id, "new_id": new_engine.engine_id})
+                await self._available.put(new_engine)
 
     def get_status(self) -> Dict[str, int]:
         """Return pool status summary."""

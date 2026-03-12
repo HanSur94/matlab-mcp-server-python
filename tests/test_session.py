@@ -263,3 +263,32 @@ class TestCleanupExpired:
             s.last_active = time.time() - 2
 
         assert mgr.cleanup_expired() == 3
+
+
+class TestSessionMonitoringEvents:
+    def test_create_session_records_event(self):
+        from unittest.mock import MagicMock
+        from matlab_mcp.session.manager import SessionManager
+        from matlab_mcp.config import load_config
+        collector = MagicMock()
+        manager = SessionManager(load_config(None), collector=collector)
+        session = manager.create_session()
+        collector.record_event.assert_called_once()
+        assert collector.record_event.call_args[0][0] == "session_created"
+
+    def test_get_or_create_default_records_event_only_once(self):
+        from unittest.mock import MagicMock
+        from matlab_mcp.session.manager import SessionManager
+        from matlab_mcp.config import load_config
+        collector = MagicMock()
+        manager = SessionManager(load_config(None), collector=collector)
+        manager.get_or_create_default()
+        manager.get_or_create_default()
+        assert collector.record_event.call_count == 1
+
+    def test_no_collector_does_not_crash(self):
+        from matlab_mcp.session.manager import SessionManager
+        from matlab_mcp.config import load_config
+        manager = SessionManager(load_config(None))
+        session = manager.create_session()
+        assert session is not None

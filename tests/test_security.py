@@ -209,3 +209,24 @@ class TestSanitizeFilenameInvalid:
     def test_pipe_in_filename(self, default_validator):
         with pytest.raises(ValueError):
             default_validator.sanitize_filename("file|name.m")
+
+
+class TestSecurityMonitoringEvents:
+    def test_blocked_function_records_event(self):
+        from unittest.mock import MagicMock
+        from matlab_mcp.security.validator import SecurityValidator
+        from matlab_mcp.config import load_config
+        config = load_config(None)
+        collector = MagicMock()
+        validator = SecurityValidator(config.security, collector=collector)
+        with pytest.raises(Exception):
+            validator.check_code("result = system('ls')")
+        collector.record_event.assert_called_once()
+        assert collector.record_event.call_args[0][0] == "blocked_function"
+
+    def test_no_collector_does_not_crash(self):
+        from matlab_mcp.security.validator import SecurityValidator
+        from matlab_mcp.config import load_config
+        validator = SecurityValidator(load_config(None).security)
+        with pytest.raises(Exception):
+            validator.check_code("result = system('ls')")

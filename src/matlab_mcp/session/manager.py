@@ -58,8 +58,9 @@ class SessionManager:
         The full :class:`~matlab_mcp.config.AppConfig` instance.
     """
 
-    def __init__(self, config: Any = None) -> None:
+    def __init__(self, config: Any = None, collector: Any = None) -> None:
         self._config = config
+        self._collector = collector
         self._sessions: Dict[str, Session] = {}
 
         # Derive limits from config or use sensible defaults
@@ -98,6 +99,8 @@ class SessionManager:
         session = Session(session_id=session_id, temp_dir=str(temp_dir))
         self._sessions[session_id] = session
         logger.debug("Created session %s (temp_dir=%s)", session_id, temp_dir)
+        if self._collector:
+            self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
         return session
 
     def get_session(self, session_id: str) -> Optional[Session]:
@@ -117,6 +120,8 @@ class SessionManager:
         session = Session(session_id=_DEFAULT_SESSION_ID, temp_dir=str(temp_dir))
         self._sessions[_DEFAULT_SESSION_ID] = session
         logger.debug("Created default session (temp_dir=%s)", temp_dir)
+        if self._collector:
+            self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
         return session
 
     def destroy_session(self, session_id: str) -> bool:

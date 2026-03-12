@@ -24,8 +24,9 @@ class SecurityValidator:
         ``blocked_functions`` attributes.
     """
 
-    def __init__(self, security_config: Any) -> None:
+    def __init__(self, security_config: Any, collector: Any = None) -> None:
         self._config = security_config
+        self._collector = collector
 
     # ------------------------------------------------------------------
     # Code checking
@@ -84,6 +85,8 @@ class SecurityValidator:
                 # Shell escape: lines starting with ! (after optional whitespace)
                 for line in sanitized.splitlines():
                     if line.lstrip().startswith("!"):
+                        if self._collector:
+                            self._collector.record_event("blocked_function", {"function": "!"})
                         raise BlockedFunctionError(
                             f"Shell escape '!' is not allowed"
                         )
@@ -93,6 +96,8 @@ class SecurityValidator:
                 # as a standalone command (no parens required for e.g. `system cmd`)
                 pattern = rf"\b{re.escape(func)}\s*\("
                 if re.search(pattern, sanitized):
+                    if self._collector:
+                        self._collector.record_event("blocked_function", {"function": func})
                     raise BlockedFunctionError(
                         f"Function '{func}' is not allowed"
                     )
