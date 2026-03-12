@@ -242,6 +242,14 @@ Now the agent can call `analyze_signal` or `train_model` directly — with full 
 |------|-----------|-------------|
 | `get_pool_status` | — | Engine pool stats (available/busy/max) |
 
+### Monitoring
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `get_server_metrics` | — | Comprehensive server metrics (pool, jobs, sessions, system) |
+| `get_server_health` | — | Health status with issue detection (healthy/degraded/unhealthy) |
+| `get_error_log` | `limit: int` | Recent errors and notable events |
+
 ## Configuration
 
 All settings live in `config.yaml` with sensible defaults. Override any setting via environment variables:
@@ -351,6 +359,45 @@ output:
 ```
 </details>
 
+## Monitoring
+
+The server includes built-in monitoring with a web dashboard, health endpoints, and MCP tools for AI agent self-monitoring.
+
+### Dashboard
+
+Access at `http://localhost:8766/dashboard` (stdio) or `http://localhost:8765/dashboard` (SSE).
+
+Features: live gauges (pool utilization, active jobs, sessions, error rate), time-series charts with Plotly.js, and a filterable event log.
+
+### Health Check
+
+```bash
+curl http://localhost:8766/health
+# Returns: {"status": "healthy", "uptime_seconds": 3600, "engines": {...}, ...}
+# Status codes: 200 for healthy/degraded, 503 for unhealthy
+```
+
+### Metrics
+
+```bash
+curl http://localhost:8766/metrics
+# Returns: {"timestamp": "...", "pool": {...}, "jobs": {...}, "sessions": {...}, ...}
+```
+
+### Configuration
+
+```yaml
+monitoring:
+  enabled: true
+  sample_interval: 10      # seconds between metric samples
+  retention_days: 7         # days to keep historical data
+  db_path: "./monitoring/metrics.db"
+  dashboard_enabled: true
+  http_port: 8766           # dashboard/health port (stdio only)
+```
+
+Environment overrides: `MATLAB_MCP_MONITORING_ENABLED`, `MATLAB_MCP_MONITORING_SAMPLE_INTERVAL`, etc.
+
 ## Architecture
 
 ```
@@ -413,7 +460,15 @@ src/matlab_mcp/
 │   ├── jobs.py        # job status, result, cancel, list
 │   ├── files.py       # upload, delete, list files
 │   ├── admin.py       # pool status
+│   ├── monitoring.py  # get_server_metrics, get_server_health, get_error_log
 │   └── custom.py      # Custom tool loader from YAML
+├── monitoring/
+│   ├── collector.py   # Background metrics sampling, event recording
+│   ├── store.py       # Async SQLite storage for time-series data
+│   ├── health.py      # Health evaluation (healthy/degraded/unhealthy)
+│   ├── routes.py      # HTTP route handlers (/health, /metrics)
+│   ├── dashboard.py   # Starlette sub-app with dashboard API
+│   └── static/        # Dashboard HTML, CSS, JS (Plotly.js)
 ├── output/
 │   ├── formatter.py   # Result formatting
 │   ├── plotly_convert.py

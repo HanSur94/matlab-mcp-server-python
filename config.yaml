@@ -72,3 +72,11 @@ sessions:
   max_sessions: 50
   session_timeout: 3600          # seconds of inactivity before cleanup
   job_retention_seconds: 86400   # how long to keep completed job metadata
+
+monitoring:
+  enabled: true
+  sample_interval: 10            # seconds between metric samples
+  retention_days: 7              # days to keep historical data
+  db_path: "./monitoring/metrics.db"
+  dashboard_enabled: true
+  http_port: 8766                # dashboard/health port (stdio transport only)

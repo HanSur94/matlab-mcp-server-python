@@ -18,3 +18,4 @@ results/
 .mypy_cache/
 .coverage
 htmlcov/
+monitoring/
