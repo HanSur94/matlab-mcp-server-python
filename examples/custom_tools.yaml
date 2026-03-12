@@ -1,0 +1,81 @@
+# Example custom tools configuration for MATLAB MCP Server
+# Save this as custom_tools.yaml and reference it in config.yaml:
+#   custom_tools:
+#     config_file: "./custom_tools.yaml"
+#
+# Each tool becomes a first-class MCP tool that AI agents can call directly.
+
+tools:
+  # Example 1: Signal analysis function
+  - name: analyze_signal
+    matlab_function: mylib.analyze_signal
+    description: >
+      Analyze a signal file and return frequency components, SNR,
+      and peak detection results.
+    parameters:
+      - name: signal_path
+        type: string
+        required: true
+        description: "Path to the signal data file (.mat)"
+      - name: sample_rate
+        type: double
+        required: true
+        description: "Sample rate in Hz"
+      - name: window_size
+        type: int
+        default: 1024
+        description: "FFT window size"
+    returns: "Struct with fields: frequencies, magnitudes, snr, peaks"
+
+  # Example 2: Machine learning model training
+  - name: train_model
+    matlab_function: ml.train_classifier
+    description: >
+      Train a classification model on a given dataset using MATLAB's
+      Statistics and Machine Learning Toolbox.
+    parameters:
+      - name: dataset_path
+        type: string
+        required: true
+        description: "Path to the training data (.mat or .csv)"
+      - name: model_type
+        type: string
+        default: "svm"
+        description: "Model type: svm, tree, knn, ensemble"
+      - name: validation_split
+        type: double
+        default: 0.2
+        description: "Fraction of data to use for validation (0-1)"
+    returns: "Trained model saved to workspace; returns accuracy and confusion matrix"
+
+  # Example 3: Image processing
+  - name: process_image
+    matlab_function: imgtools.enhance_image
+    description: >
+      Apply image enhancement pipeline: denoise, contrast adjustment,
+      and optional sharpening.
+    parameters:
+      - name: image_path
+        type: string
+        required: true
+        description: "Path to the input image"
+      - name: denoise_strength
+        type: double
+        default: 0.5
+        description: "Denoising strength (0=none, 1=maximum)"
+      - name: sharpen
+        type: logical
+        default: false
+        description: "Apply sharpening filter"
+    returns: "Processed image saved to workspace and temp directory"
+
+  # Example 4: Simple utility — no optional parameters
+  - name: compute_statistics
+    matlab_function: stats.compute_summary
+    description: "Compute summary statistics for a .mat data file"
+    parameters:
+      - name: data_path
+        type: string
+        required: true
+        description: "Path to the .mat file containing the data variable"
+    returns: "Struct with mean, std, median, min, max, histogram data"

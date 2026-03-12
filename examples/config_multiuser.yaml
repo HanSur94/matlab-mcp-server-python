@@ -1,0 +1,43 @@
+# Multi-user configuration — SSE transport with larger pool
+# Copy this to config.yaml in your project root
+
+server:
+  transport: "sse"
+  host: "0.0.0.0"
+  port: 8765
+  log_level: "info"
+  drain_timeout_seconds: 600
+
+pool:
+  min_engines: 4
+  max_engines: 16
+  scale_down_idle_timeout: 1800    # 30 min idle before scaling down
+  engine_start_timeout: 180
+  health_check_interval: 30
+
+execution:
+  sync_timeout: 60                 # promote to async after 60s
+  max_execution_time: 172800       # 48h hard limit
+
+security:
+  blocked_functions_enabled: true
+  blocked_functions:
+    - "system"
+    - "unix"
+    - "dos"
+    - "!"
+    - "eval"                       # also block eval for extra safety
+  max_upload_size_mb: 500
+  require_proxy_auth: true         # enforce reverse proxy auth
+
+sessions:
+  max_sessions: 100
+  session_timeout: 7200            # 2h inactivity timeout
+
+output:
+  plotly_conversion: true
+  static_image_dpi: 300
+  thumbnail_enabled: true
+
+toolboxes:
+  mode: "all"                      # expose all installed toolboxes

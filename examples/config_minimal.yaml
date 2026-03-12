@@ -1,0 +1,10 @@
+# Minimal configuration — single user, stdio transport
+# Copy this to config.yaml in your project root
+
+server:
+  transport: "stdio"
+  log_level: "info"
+
+pool:
+  min_engines: 1
+  max_engines: 2
