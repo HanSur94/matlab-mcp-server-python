@@ -62,7 +62,14 @@ class MatlabMCPServer:
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config
-        self.pool = EnginePoolManager(config)
+        # Collector and store always initialised (None when disabled)
+        self.collector: Optional[Any] = None
+        self.store: Optional[Any] = None  # Set in lifespan when monitoring enabled
+        if config.monitoring.enabled:
+            from matlab_mcp.monitoring.collector import MetricsCollector
+            self.collector = MetricsCollector(config)
+
+        self.pool = EnginePoolManager(config, collector=self.collector)
         self.tracker = JobTracker(
             retention_seconds=config.sessions.job_retention_seconds
         )
@@ -70,9 +77,10 @@ class MatlabMCPServer:
             pool=self.pool,
             tracker=self.tracker,
             config=config,
+            collector=self.collector,
         )
-        self.sessions = SessionManager(config)
-        self.security = SecurityValidator(config.security)
+        self.sessions = SessionManager(config, collector=self.collector)
+        self.security = SecurityValidator(config.security, collector=self.collector)
         self.formatter = ResultFormatter(config)
 
     # ------------------------------------------------------------------
@@ -160,10 +168,59 @@ def create_server(config: AppConfig) -> FastMCP:
         if helpers_dir not in config.workspace.default_paths:
             config.workspace.default_paths.insert(0, helpers_dir)
 
+        # Initialize monitoring store and connect collector
+        collector_task = None
+        monitoring_server = None
+        monitoring_task = None
+
+        if config.monitoring.enabled and state.collector:
+            from matlab_mcp.monitoring.store import MetricsStore
+
+            monitoring_dir = Path(config.monitoring.db_path).parent
+            monitoring_dir.mkdir(parents=True, exist_ok=True)
+
+            state.store = MetricsStore(config.monitoring.db_path)
+            await state.store.initialize()
+
+            state.collector.store = state.store
+
         # Start engine pool
         logger.info("Starting MATLAB engine pool...")
         await state.pool.start()
         logger.info("MATLAB engine pool started")
+
+        # Wire collector to live components
+        if state.collector:
+            state.collector.pool = state.pool
+            state.collector.tracker = state.tracker
+            state.collector.sessions = state.sessions
+            collector_task = asyncio.create_task(state.collector.start_sampling())
+
+        # Start monitoring HTTP server for stdio transport
+        if (
+            config.server.transport == "stdio"
+            and config.monitoring.enabled
+            and state.collector
+        ):
+            try:
+                import uvicorn
+                from matlab_mcp.monitoring.dashboard import create_monitoring_app
+
+                monitoring_app = create_monitoring_app(state)
+                uvi_config = uvicorn.Config(
+                    monitoring_app,
+                    host="127.0.0.1",
+                    port=config.monitoring.http_port,
+                    log_level="warning",
+                )
+                monitoring_server = uvicorn.Server(uvi_config)
+                monitoring_task = asyncio.create_task(monitoring_server.serve())
+                logger.info(
+                    "Monitoring dashboard at http://127.0.0.1:%d/dashboard",
+                    config.monitoring.http_port,
+                )
+            except ImportError:
+                logger.warning("uvicorn not installed — monitoring HTTP server disabled")
 
         # Background task: periodic health checks
         async def health_check_loop() -> None:
@@ -186,6 +243,8 @@ def create_server(config: AppConfig) -> FastMCP:
                         has_active_jobs_fn=state.tracker.has_active_jobs
                     )
                     state.tracker.prune()
+                    if state.store:
+                        await state.store.prune(config.monitoring.retention_days)
                 except asyncio.CancelledError:
                     break
                 except Exception as exc:
@@ -197,6 +256,17 @@ def create_server(config: AppConfig) -> FastMCP:
         try:
             yield
         finally:
+            # Stop monitoring (order: collector → store → HTTP server)
+            if collector_task:
+                collector_task.cancel()
+                await asyncio.gather(collector_task, return_exceptions=True)
+            if state.store:
+                await state.store.close()
+            if monitoring_server is not None:
+                monitoring_server.should_exit = True
+            if monitoring_task is not None:
+                await monitoring_task
+
             # Cancel background tasks
             health_task.cancel()
             cleanup_task.cancel()
@@ -233,6 +303,19 @@ def create_server(config: AppConfig) -> FastMCP:
         name=config.server.name,
         lifespan=lifespan,
     )
+
+    # Mount monitoring routes for SSE transport
+    if config.server.transport == "sse" and config.monitoring.enabled:
+        try:
+            from starlette.routing import Mount
+            from matlab_mcp.monitoring.dashboard import create_monitoring_app
+
+            monitoring_sub_app = create_monitoring_app(state)
+            mcp._additional_http_routes.append(
+                Mount("/", app=monitoring_sub_app)
+            )
+        except Exception as exc:
+            logger.warning("Failed to mount monitoring routes for SSE: %s", exc)
 
     # ------------------------------------------------------------------
     # Tool registrations
@@ -426,6 +509,31 @@ def create_server(config: AppConfig) -> FastMCP:
         Returns the total, available, busy, and max engine counts.
         """
         return await get_pool_status_impl(pool=state.pool)
+
+    # ------------------------------------------------------------------
+    # Monitoring tools
+    # ------------------------------------------------------------------
+
+    from matlab_mcp.tools.monitoring import (
+        get_error_log_impl,
+        get_server_health_impl,
+        get_server_metrics_impl,
+    )
+
+    @mcp.tool
+    async def get_server_metrics(ctx: Context) -> dict:
+        """Get comprehensive server metrics including pool, jobs, sessions, and system stats."""
+        return await get_server_metrics_impl(state)
+
+    @mcp.tool
+    async def get_server_health(ctx: Context) -> dict:
+        """Get server health status with issue detection. Returns healthy/degraded/unhealthy."""
+        return await get_server_health_impl(state)
+
+    @mcp.tool
+    async def get_error_log(ctx: Context, limit: int = 20) -> dict:
+        """Get recent server errors and notable events for diagnosing issues."""
+        return await get_error_log_impl(state, limit=limit)
 
     # ------------------------------------------------------------------
     # Custom tools
