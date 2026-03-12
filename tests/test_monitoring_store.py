@@ -92,6 +92,19 @@ class TestMetricsStoreRead:
         assert failed[0]["event_type"] == "job_failed"
         await store.close()
 
+    async def test_get_events_filtered_by_types_list(self, tmp_path):
+        from matlab_mcp.monitoring.store import MetricsStore
+        store = MetricsStore(str(tmp_path / "metrics.db"))
+        await store.initialize()
+        await store.insert_event("job_failed", {"job_id": "j1"})
+        await store.insert_event("engine_crash", {"engine_id": "e1"})
+        await store.insert_event("session_created", {"session_id_short": "abc"})
+        errors = await store.get_events(limit=10, event_types=["job_failed", "engine_crash"])
+        assert len(errors) == 2
+        types = {e["event_type"] for e in errors}
+        assert types == {"job_failed", "engine_crash"}
+        await store.close()
+
     async def test_get_aggregates(self, tmp_path):
         from matlab_mcp.monitoring.store import MetricsStore
         store = MetricsStore(str(tmp_path / "metrics.db"))

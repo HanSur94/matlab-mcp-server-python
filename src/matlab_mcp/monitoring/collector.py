@@ -210,8 +210,6 @@ class MetricsCollector:
         metrics["jobs.completed_total"] = self._counters["completed_total"]
         metrics["jobs.failed_total"] = self._counters["failed_total"]
         metrics["jobs.cancelled_total"] = self._counters["cancelled_total"]
-        metrics["jobs.avg_execution_ms"] = exec_stats["avg_execution_ms"]
-        metrics["jobs.p95_execution_ms"] = exec_stats["p95_execution_ms"]
         metrics["sessions.total_created"] = self._counters["total_created_sessions"]
         metrics["errors.total"] = self._counters["error_total"]
         metrics["errors.blocked_attempts"] = self._counters["blocked_attempts"]

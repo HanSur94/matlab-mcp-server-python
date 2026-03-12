@@ -28,7 +28,7 @@ def evaluate_health(collector: Any) -> dict[str, Any]:
     if total == 0:
         status = "unhealthy"
         issues.append("No engines running")
-    elif available == 0 and total >= max_engines and utilization <= 90:
+    elif available == 0 and total >= max_engines:
         status = "unhealthy"
         issues.append(f"All {total} engines busy and pool at max capacity ({max_engines})")
 

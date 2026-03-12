@@ -43,10 +43,18 @@ class TestHealthEvaluation:
 
     def test_degraded_high_utilization(self):
         from matlab_mcp.monitoring.health import evaluate_health
-        collector = _make_collector(pool_status={"total": 10, "available": 0, "busy": 10, "max": 10})
+        # 19/20 busy = 95% utilization, but not at max capacity (1 still available)
+        collector = _make_collector(pool_status={"total": 20, "available": 1, "busy": 19, "max": 20})
         result = evaluate_health(collector)
         assert result["status"] == "degraded"
         assert any("utilization" in i.lower() for i in result["issues"])
+
+    def test_unhealthy_all_busy_at_max(self):
+        from matlab_mcp.monitoring.health import evaluate_health
+        collector = _make_collector(pool_status={"total": 10, "available": 0, "busy": 10, "max": 10})
+        result = evaluate_health(collector)
+        assert result["status"] == "unhealthy"
+        assert any("max capacity" in i.lower() for i in result["issues"])
 
     def test_degraded_high_error_rate(self):
         from matlab_mcp.monitoring.health import evaluate_health

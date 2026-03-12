@@ -24,6 +24,10 @@ STATIC_DIR = Path(__file__).parent / "static"
 def create_monitoring_app(state: Any) -> Starlette:
     """Create a Starlette app for monitoring endpoints + dashboard."""
 
+    # Cache index.html at startup to avoid blocking the event loop
+    index_path = STATIC_DIR / "index.html"
+    _cached_html = index_path.read_text() if index_path.exists() else None
+
     async def health_handler(request: Request) -> JSONResponse:
         response = build_health_response(state)
         return JSONResponse(response, status_code=get_health_status_code(response))
@@ -32,9 +36,8 @@ def create_monitoring_app(state: Any) -> Starlette:
         return JSONResponse(build_metrics_response(state))
 
     async def dashboard_handler(request: Request) -> HTMLResponse:
-        index_path = STATIC_DIR / "index.html"
-        if index_path.exists():
-            return HTMLResponse(index_path.read_text())
+        if _cached_html is not None:
+            return HTMLResponse(_cached_html)
         return HTMLResponse("<h1>Dashboard not found</h1>", status_code=404)
 
     async def api_current(request: Request) -> JSONResponse:

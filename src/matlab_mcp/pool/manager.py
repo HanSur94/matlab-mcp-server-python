@@ -164,7 +164,7 @@ class EnginePoolManager:
             if not healthy:
                 logger.warning("[%s] Health check failed; replacing", engine.engine_id)
                 if self._collector:
-                    self._collector.record_event("engine_crash", {"engine_id": engine.engine_id, "error": "health check failed"})
+                    self._collector.record_event("health_check_fail", {"engine_id": engine.engine_id, "error": "health check failed"})
                 to_replace.append(engine)
                 continue
 

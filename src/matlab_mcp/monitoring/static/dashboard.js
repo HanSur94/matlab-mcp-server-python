@@ -116,7 +116,14 @@ async function updateEvents() {
         const ts = new Date(ev.timestamp).toLocaleTimeString();
         let details = '';
         try { details = JSON.stringify(JSON.parse(ev.details)); } catch { details = ev.details; }
-        tr.innerHTML = `<td>${ts}</td><td class="type type-${ev.event_type}">${ev.event_type}</td><td>${details}</td>`;
+        const tdTs = document.createElement('td');
+        tdTs.textContent = ts;
+        const tdType = document.createElement('td');
+        tdType.textContent = ev.event_type;
+        tdType.className = `type type-${ev.event_type.replace(/[^a-z0-9_]/gi, '_')}`;
+        const tdDetails = document.createElement('td');
+        tdDetails.textContent = details;
+        tr.append(tdTs, tdType, tdDetails);
         tbody.appendChild(tr);
     }
 }
