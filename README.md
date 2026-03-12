@@ -361,28 +361,169 @@ output:
 
 ## Monitoring
 
-The server includes built-in monitoring with a web dashboard, health endpoints, and MCP tools for AI agent self-monitoring.
+Built-in observability with a web dashboard, JSON health/metrics endpoints, and MCP tools for AI agent self-monitoring.
 
 ### Dashboard
 
 Access at `http://localhost:8766/dashboard` (stdio) or `http://localhost:8765/dashboard` (SSE).
 
-Features: live gauges (pool utilization, active jobs, sessions, error rate), time-series charts with Plotly.js, and a filterable event log.
+Features:
+- **7 live gauges**: pool utilization, engines (busy/total), active jobs, completed jobs, active sessions, avg execution time, errors/min
+- **6 time-series charts** (Plotly.js): pool utilization, job throughput, execution time (avg + p95), active sessions, memory usage, error count
+- **MATLAB execution log**: filterable table showing time, event type, MATLAB code, output, and duration for every job
+- **Time range selector**: 1h, 6h, 24h, 7d views
+- Auto-refreshes every 10 seconds
 
-### Health Check
+### Health Endpoint
 
 ```bash
 curl http://localhost:8766/health
-# Returns: {"status": "healthy", "uptime_seconds": 3600, "engines": {...}, ...}
-# Status codes: 200 for healthy/degraded, 503 for unhealthy
 ```
 
-### Metrics
+```json
+{
+  "status": "healthy",
+  "uptime_seconds": 3600.1,
+  "issues": [],
+  "engines": {"total": 2, "available": 1, "busy": 1},
+  "active_jobs": 1,
+  "active_sessions": 3
+}
+```
+
+**Status codes**: 200 for healthy/degraded, 503 for unhealthy.
+
+**Health evaluation rules**:
+
+| Status | Condition |
+|--------|-----------|
+| `unhealthy` | No engines running (`total == 0`) |
+| `unhealthy` | All engines busy at max capacity (`available == 0 && total >= max_engines`) |
+| `degraded` | Pool utilization > 90% |
+| `degraded` | Health check failures detected |
+| `degraded` | Error rate > 5/min |
+| `healthy` | None of the above |
+
+### Metrics Endpoint
 
 ```bash
 curl http://localhost:8766/metrics
-# Returns: {"timestamp": "...", "pool": {...}, "jobs": {...}, "sessions": {...}, ...}
 ```
+
+```json
+{
+  "timestamp": "2026-03-12T23:01:56.799Z",
+  "pool": {"total": 2, "available": 1, "busy": 1, "max": 10, "utilization_pct": 50.0},
+  "jobs": {"active": 1, "completed_total": 47, "failed_total": 2, "cancelled_total": 0, "avg_execution_ms": 28.5},
+  "sessions": {"total_created": 5, "active": 3},
+  "errors": {"total": 2, "blocked_attempts": 0, "health_check_failures": 0},
+  "system": {"uptime_seconds": 3600.1, "memory_mb": 108.8, "cpu_percent": 12.3}
+}
+```
+
+### Dashboard API
+
+| Endpoint | Parameters | Description |
+|----------|-----------|-------------|
+| `GET /health` | — | Health status + issues |
+| `GET /metrics` | — | Live metrics snapshot (no DB hit) |
+| `GET /dashboard` | — | Web dashboard HTML |
+| `GET /dashboard/api/current` | — | Same as `/metrics` |
+| `GET /dashboard/api/history` | `metric`, `hours` | Time-series data from SQLite |
+| `GET /dashboard/api/events` | `limit`, `type` | Event log with MATLAB output |
+
+**Available history metrics**: `pool.utilization_pct`, `pool.total_engines`, `pool.busy_engines`, `jobs.completed_total`, `jobs.failed_total`, `jobs.avg_execution_ms`, `jobs.p95_execution_ms`, `sessions.active_count`, `system.memory_mb`, `system.cpu_percent`, `errors.total`
+
+### Backend Architecture
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │           MetricsCollector                   │
+                    │                                             │
+                    │  In-memory:                                 │
+  record_event() ──│─▶ _counters (7 counters)                    │
+  (sync, from any  │   _execution_times (ring buffer, maxlen=100)│
+   component)      │                                             │
+                    │  Background task (every 10s):               │
+                    │   sample_once() ─▶ MetricsStore.insert()   │
+                    │                                             │
+                    │  Live snapshot (no DB):                     │
+                    │   get_current_snapshot() ─▶ /metrics        │
+                    └───────────┬─────────────────────────────────┘
+                                │
+                    ┌───────────▼─────────────────────────────────┐
+                    │           MetricsStore (aiosqlite)           │
+                    │                                             │
+                    │  metrics table:                             │
+                    │   id | timestamp | category | metric | value│
+                    │   (4 indexes for fast queries)              │
+                    │                                             │
+                    │  events table:                              │
+                    │   id | timestamp | event_type | details     │
+                    │   (details = JSON with code, output, etc.)  │
+                    │                                             │
+                    │  Methods:                                   │
+                    │   insert_metrics(), insert_event()          │
+                    │   get_latest(), get_history(), get_events() │
+                    │   get_aggregates(), prune()                 │
+                    │                                             │
+                    │  SQLite WAL mode, log-and-swallow errors    │
+                    └───────────┬─────────────────────────────────┘
+                                │
+                    ┌───────────▼─────────────────────────────────┐
+                    │     Starlette Dashboard App                  │
+                    │                                             │
+                    │  /health ─▶ evaluate_health(collector)      │
+                    │  /metrics ─▶ collector.get_current_snapshot()│
+                    │  /dashboard ─▶ cached index.html            │
+                    │  /dashboard/api/* ─▶ store queries          │
+                    │  /dashboard/static/* ─▶ JS, CSS, Plotly.js  │
+                    └─────────────────────────────────────────────┘
+```
+
+### Event Types
+
+Events are recorded synchronously via `collector.record_event()` from any server component. Each event includes a JSON `details` field.
+
+| Event Type | Source | Details Fields |
+|------------|--------|---------------|
+| `job_completed` | Executor | `job_id`, `execution_ms`, `code`, `output` |
+| `job_failed` | Executor | `job_id`, `code`, `error` |
+| `session_created` | SessionManager | `session_id_short` |
+| `engine_scale_up` | PoolManager | `engine_id`, `total_after` |
+| `engine_scale_down` | PoolManager | `engine_id`, `total_after` |
+| `engine_replaced` | PoolManager | `old_id`, `new_id` |
+| `health_check_fail` | PoolManager | `engine_id`, `error` |
+| `blocked_function` | SecurityValidator | `function`, `code_snippet` |
+
+### In-Memory Counters
+
+The collector maintains 7 counters updated on every event (no DB hit):
+
+| Counter | Incremented By |
+|---------|---------------|
+| `completed_total` | `job_completed` |
+| `failed_total` | `job_failed` |
+| `cancelled_total` | `job_cancelled` |
+| `total_created_sessions` | `session_created` |
+| `error_total` | Any error event (`job_failed`, `blocked_function`, `engine_crash`, `health_check_fail`) |
+| `blocked_attempts` | `blocked_function` |
+| `health_check_failures` | `health_check_fail` |
+
+### Execution Time Tracking
+
+Job execution times are stored in a ring buffer (`deque(maxlen=100)`) for O(1) avg/p95 calculation without DB queries. The p95 is computed as `sorted_times[int((len-1) * 0.95)]`.
+
+### Transport Integration
+
+| Transport | Monitoring Port | How |
+|-----------|----------------|-----|
+| **SSE** | Same as SSE port (8765) | Dashboard mounted as Starlette sub-app via `mcp._additional_http_routes` |
+| **stdio** | Separate port (8766) | Uvicorn started as background `asyncio.Task` |
+
+### Data Retention
+
+The cleanup loop runs every 60 seconds and calls `store.prune(retention_days=7)` to delete metrics and events older than the configured retention period. SQLite WAL mode ensures reads aren't blocked during writes.
 
 ### Configuration
 
@@ -405,24 +546,62 @@ AI Agent (Claude, Cursor, etc.)
        │
        │ MCP Protocol (stdio or SSE)
        ▼
-┌─────────────────────────────┐
-│   MCP Server (FastMCP)       │
-│   14 tools + custom tools    │
-│   Session manager            │
-│   Result formatter           │
-└──────────┬──────────────────┘
-           │
-┌──────────▼──────────────────┐
-│   MATLAB Pool Manager        │
-│   Elastic engine pool        │
-│   Job scheduler (sync/async) │
-│   Health checks & scaling    │
-└──────────┬──────────────────┘
-           │
-┌──────────▼──────────────────┐
-│   MATLAB Engines (2020b+)    │
-│   Engine 1 │ Engine 2 │ ... │
-└─────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│   MCP Server (FastMCP 2.x)                                │
+│   17 tools + custom tools                                 │
+│   Session manager  │  Security validator  │  Formatter    │
+└──────────┬───────────────────────────────┬───────────────┘
+           │                               │
+┌──────────▼──────────────────┐  ┌─────────▼──────────────┐
+│   Job Executor               │  │  MetricsCollector       │
+│   Sync/async execution       │  │  In-memory counters     │
+│   Timeout auto-promotion     │  │  Ring buffer (p95)      │
+│   stdout/stderr capture      │  │  Background sampling    │
+│   Event recording ──────────────▶  Event recording       │
+└──────────┬──────────────────┘  └─────────┬──────────────┘
+           │                               │
+┌──────────▼──────────────────┐  ┌─────────▼──────────────┐
+│   MATLAB Pool Manager        │  │  MetricsStore (SQLite)  │
+│   Elastic engine pool        │  │  Time-series metrics    │
+│   Scale up/down on demand    │  │  Event log with output  │
+│   Health checks & replace    │  │  Aggregates & history   │
+└──────────┬──────────────────┘  └─────────┬──────────────┘
+           │                               │
+┌──────────▼──────────────────┐  ┌─────────▼──────────────┐
+│   MATLAB Engines (2020b+)    │  │  Dashboard (Starlette)  │
+│   Engine 1 │ Engine 2 │ ... │  │  /health  /metrics      │
+│   Workspace isolation        │  │  /dashboard (Plotly.js) │
+└──────────────────────────────┘  └─────────────────────────┘
+```
+
+### Request Flow
+
+1. AI agent sends `execute_code` via MCP protocol
+2. `SecurityValidator` checks code against function blocklist
+3. `JobExecutor` creates a job, acquires an engine from the pool
+4. Code runs in MATLAB with stdout/stderr captured via `StringIO`
+5. If completes within `sync_timeout` (30s): result returned inline
+6. If exceeds timeout: promoted to async, agent gets `job_id` to poll
+7. `MetricsCollector.record_event()` logs code + output + duration
+8. Engine released back to pool, workspace reset
+
+### Component Wiring
+
+All components receive a `collector` reference at construction time. The collector is wired to live pool/tracker/sessions in the lifespan handler after startup. This allows synchronous `record_event()` calls from any component without async overhead.
+
+```python
+# Construction (before event loop)
+collector = MetricsCollector(config)
+pool = EnginePoolManager(config, collector=collector)
+executor = JobExecutor(pool, tracker, config, collector=collector)
+sessions = SessionManager(config, collector=collector)
+security = SecurityValidator(config.security, collector=collector)
+
+# Lifespan (after event loop starts)
+collector.pool = pool
+collector.tracker = tracker
+collector.sessions = sessions
+collector.store = MetricsStore(config.monitoring.db_path)
 ```
 
 ## Development
