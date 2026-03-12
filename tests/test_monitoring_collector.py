@@ -123,5 +123,10 @@ class TestCollectorSampling:
         snapshot = collector.get_current_snapshot()
         assert "timestamp" in snapshot
         assert snapshot["pool"]["total"] == 4
+        assert snapshot["jobs"]["active"] == 0
+        assert snapshot["jobs"]["completed_total"] == 0
         assert snapshot["sessions"]["active"] == 2
+        assert snapshot["sessions"]["total_created"] == 0
+        assert snapshot["errors"]["total"] == 0
         assert "system" in snapshot
+        assert "counters" not in snapshot  # non-spec key must not be present

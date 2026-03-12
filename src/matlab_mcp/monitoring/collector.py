@@ -35,10 +35,10 @@ def _get_system_metrics() -> Tuple[Optional[float], Optional[float]]:
     try:
         import psutil  # type: ignore
 
-        mem = psutil.virtual_memory()
-        memory_mb = mem.used / (1024 * 1024)
-        cpu_percent = psutil.cpu_percent(interval=None)
-        return memory_mb, cpu_percent
+        proc = psutil.Process()
+        mem = proc.memory_info().rss / 1e6
+        cpu = proc.cpu_percent()
+        return mem, cpu
     except Exception:
         return None, None
 
@@ -206,6 +206,17 @@ class MetricsCollector:
         if exec_stats["p95_execution_ms"] is not None:
             metrics["jobs.p95_execution_ms"] = exec_stats["p95_execution_ms"]
 
+        # Counter persistence
+        metrics["jobs.completed_total"] = self._counters["completed_total"]
+        metrics["jobs.failed_total"] = self._counters["failed_total"]
+        metrics["jobs.cancelled_total"] = self._counters["cancelled_total"]
+        metrics["jobs.avg_execution_ms"] = exec_stats["avg_execution_ms"]
+        metrics["jobs.p95_execution_ms"] = exec_stats["p95_execution_ms"]
+        metrics["sessions.total_created"] = self._counters["total_created_sessions"]
+        metrics["errors.total"] = self._counters["error_total"]
+        metrics["errors.blocked_attempts"] = self._counters["blocked_attempts"]
+        metrics["errors.health_check_failures"] = self._counters["health_check_failures"]
+
         await self.store.insert_metrics(ts, metrics)
 
     async def start_sampling(self) -> None:
@@ -245,19 +256,26 @@ class MetricsCollector:
         snapshot["pool"] = pool_data
 
         # Jobs / tracker
-        jobs_data: Dict[str, Any] = {}
+        exec_stats = self.get_execution_stats()
+        jobs_data: Dict[str, Any] = {
+            "active": 0,
+            "completed_total": self._counters["completed_total"],
+            "failed_total": self._counters["failed_total"],
+            "cancelled_total": self._counters["cancelled_total"],
+            "avg_execution_ms": exec_stats["avg_execution_ms"],
+        }
         if self.tracker is not None:
             try:
                 jobs = self.tracker.list_jobs()
-                jobs_data["active_count"] = len(jobs)
+                jobs_data["active"] = len(jobs)
             except Exception as exc:
                 logger.warning("get_current_snapshot tracker error: %s", exc)
-        exec_stats = self.get_execution_stats()
-        jobs_data.update(exec_stats)
         snapshot["jobs"] = jobs_data
 
         # Sessions
-        sessions_data: Dict[str, Any] = {}
+        sessions_data: Dict[str, Any] = {
+            "total_created": self._counters["total_created_sessions"],
+        }
         if self.sessions is not None:
             try:
                 sessions_data["active"] = self.sessions.session_count
@@ -265,8 +283,12 @@ class MetricsCollector:
                 logger.warning("get_current_snapshot sessions error: %s", exc)
         snapshot["sessions"] = sessions_data
 
-        # Counters
-        snapshot["counters"] = self.get_counters()
+        # Errors
+        snapshot["errors"] = {
+            "total": self._counters["error_total"],
+            "blocked_attempts": self._counters["blocked_attempts"],
+            "health_check_failures": self._counters["health_check_failures"],
+        }
 
         # System
         system_data: Dict[str, Any] = {
