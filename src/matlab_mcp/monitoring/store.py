@@ -33,13 +33,14 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 _CREATE_METRICS_INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp);",
-    "CREATE INDEX IF NOT EXISTS idx_metrics_category_name ON metrics(category, metric_name);",
+    "CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics(timestamp);",
+    "CREATE INDEX IF NOT EXISTS idx_metrics_cat_name ON metrics(category, metric_name);",
 ]
 
-_CREATE_EVENTS_INDEX = (
-    "CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);"
-)
+_CREATE_EVENTS_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);",
+    "CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);",
+]
 
 
 def _split_key(key: str):
@@ -70,7 +71,8 @@ class MetricsStore:
         await self._db.execute(_CREATE_EVENTS_TABLE)
         for idx_sql in _CREATE_METRICS_INDEXES:
             await self._db.execute(idx_sql)
-        await self._db.execute(_CREATE_EVENTS_INDEX)
+        for idx_sql in _CREATE_EVENTS_INDEXES:
+            await self._db.execute(idx_sql)
         await self._db.commit()
 
     async def close(self) -> None:
@@ -195,8 +197,8 @@ class MetricsStore:
         """Return recent events, optionally filtered by type.
 
         *event_type* filters to exactly one type; *event_types* filters to a
-        set of types.  Returns rows ordered oldest-first so callers get a
-        natural time series.
+        set of types.  Returns rows ordered newest-first (most recent events
+        first).
         """
         if self._db is None:
             return []
@@ -295,8 +297,8 @@ class MetricsStore:
             if exec_times:
                 avg_execution_ms = statistics.mean(exec_times)
                 sorted_times = sorted(exec_times)
-                idx = int(len(sorted_times) * 0.95)
-                p95_execution_ms = sorted_times[min(idx, len(sorted_times) - 1)]
+                idx = int((len(sorted_times) - 1) * 0.95)
+                p95_execution_ms = sorted_times[idx]
 
             # Error events per minute
             error_types = list(ERROR_EVENT_TYPES)
