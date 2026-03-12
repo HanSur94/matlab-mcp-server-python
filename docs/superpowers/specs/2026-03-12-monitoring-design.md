@@ -33,16 +33,25 @@ A background asyncio task that samples server state at a configurable interval (
 | jobs | completed_total | cumulative counter |
 | jobs | failed_total | cumulative counter |
 | jobs | cancelled_total | cumulative counter |
-| jobs | avg_execution_ms | rolling average from completed jobs |
+| jobs | avg_execution_ms | rolling average from last 100 completed jobs |
+| jobs | p95_execution_ms | 95th percentile from last 100 completed jobs |
 | sessions | active_count | `sessions.session_count` |
 | sessions | total_created | cumulative counter |
-| errors | error_count | cumulative counter |
+| errors | total | cumulative counter |
 | errors | blocked_attempts | cumulative counter from security validator |
 | errors | health_check_failures | cumulative counter from pool health checks |
 | system | memory_mb | `psutil.Process().memory_info().rss / 1e6` |
 | system | cpu_percent | `psutil.Process().cpu_percent()` |
 
 **Cumulative counters:** The collector maintains in-memory counters that increment on events. These are persisted to SQLite each sample. On server restart, counters reset to 0 (the time-series history is preserved in SQLite).
+
+**`avg_execution_ms` window:** Rolling average over the last 100 completed jobs (in-memory ring buffer). Resets to 0 on server restart. If fewer than 100 jobs have completed, averages over all completed jobs so far.
+
+**`p95_execution_ms`:** 95th percentile from the same 100-job ring buffer. Stored alongside `avg_execution_ms` each sample.
+
+**`sessions.total_created`:** Incremented via a `collector.record_event("session_created", ...)` callback from `SessionManager.create_session()`. The collector maintains the cumulative counter in memory.
+
+**`uptime_seconds`:** Calculated as `time.time() - collector.start_time`, where `start_time` is recorded when the `MetricsCollector` is constructed.
 
 **System metrics fallback:** If `psutil` is not installed, `memory_mb` and `cpu_percent` return `null`. No error, no warning at sample time (a single info-level log at startup noting psutil is unavailable).
 
@@ -56,12 +65,36 @@ Discrete events are recorded to the `events` table when they occur (not on the s
 | `engine_scale_down` | Pool stops an idle engine | `{"engine_id": "...", "total_after": N}` |
 | `engine_crash` | Health check finds dead engine | `{"engine_id": "...", "error": "..."}` |
 | `engine_replaced` | Dead engine replaced by new one | `{"old_id": "...", "new_id": "..."}` |
-| `blocked_function` | Security validator blocks code | `{"function": "system", "session_id": "..."}` |
+| `session_created` | New session created | `{"session_id_short": "a1b2c3d4"}` |
+| `blocked_function` | Security validator blocks code | `{"function": "system", "session_id_short": "a1b2c3d4"}` |
 | `job_completed` | Job finishes successfully | `{"job_id": "...", "execution_ms": N}` |
 | `job_failed` | Job finishes with error | `{"job_id": "...", "error": "..."}` |
 | `health_check_fail` | Engine health check fails | `{"engine_id": "...", "error": "..."}` |
 
-**Integration:** Event recording is done by passing a callback or reference to the `MetricsCollector` into existing components (pool manager, security validator, job executor). These components call `collector.record_event(type, details)` at the appropriate points.
+**Session ID privacy:** Event details use `session_id_short` (last 8 characters of the session ID) to avoid leaking full session IDs in the dashboard and error logs.
+
+**Integration — collector injection pattern:**
+
+`MetricsCollector` is constructed in `MatlabMCPServer.__init__()` — before pool, executor, and other components. It holds the in-memory counters and the `MetricsStore` reference. The background sampling task is not started until `lifespan`, but the object exists and can receive `record_event()` calls immediately.
+
+Existing components receive the collector as an optional constructor argument:
+
+```python
+class MatlabMCPServer:
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+        # Collector created FIRST
+        self.collector = MetricsCollector(config) if config.monitoring.enabled else None
+        # Then components that use it
+        self.pool = EnginePoolManager(config, collector=self.collector)
+        self.tracker = JobTracker(...)
+        self.executor = JobExecutor(pool=self.pool, tracker=self.tracker, config=config, collector=self.collector)
+        self.sessions = SessionManager(config, collector=self.collector)
+        self.security = SecurityValidator(config.security, collector=self.collector)
+        self.formatter = ResultFormatter(config)
+```
+
+When `collector` is `None` (monitoring disabled), components skip the `record_event()` call — a simple `if self.collector:` guard at each call site.
 
 ---
 
@@ -104,13 +137,23 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
 - `get_latest()` — most recent metrics sample (all metrics at the latest timestamp)
 - `get_history(metric_name, hours)` — time-series for a specific metric over N hours
 - `get_events(limit, event_type=None)` — recent events, optionally filtered by type
-- `get_aggregates(hours)` — computed aggregates: job success rate, avg execution time, error rate per minute
+- `get_aggregates(hours)` — computed aggregates from stored metrics and events rows:
+  ```python
+  {
+      "job_success_rate": 0.97,       # completed / (completed + failed) from events
+      "avg_execution_ms": 2100,       # mean of jobs.avg_execution_ms metric samples
+      "p95_execution_ms": 5400,       # mean of jobs.p95_execution_ms metric samples
+      "error_rate_per_minute": 0.08   # count of error events / time window in minutes
+  }
+  ```
 
 **Retention pruning:**
-- `prune(retention_days)` — delete rows from both tables where `timestamp` is older than `retention_days`
-- Called from the existing cleanup loop (every 60 seconds), same as job tracker pruning
+- `prune(retention_days)` — async method, deletes rows from both tables where `timestamp` is older than `retention_days`
+- Called from the existing cleanup loop with `await store.prune(retention_days)` (the cleanup loop is already async)
 
-**Thread safety:** All SQLite access goes through `MetricsStore` which uses `aiosqlite` for async access (new dependency) or falls back to running synchronous `sqlite3` calls in an executor. Recommend `aiosqlite` for cleanliness.
+**Error handling:** All `MetricsStore` write operations (`insert_metrics`, `insert_event`) catch exceptions, log a warning, and return silently — monitoring failures must never crash the server. Read failures in HTTP endpoints return an empty result set with HTTP 200 (not 500), plus a `"warning": "metrics unavailable"` field.
+
+**Thread safety:** All SQLite access goes through `MetricsStore` which uses `aiosqlite` for async access.
 
 **New dependency:** `aiosqlite>=0.19.0` (lightweight async SQLite wrapper).
 
@@ -188,9 +231,20 @@ Returns comprehensive metrics snapshot as JSON. Always `200`.
 
 **SSE transport:** Routes are mounted on the same Starlette/ASGI app that FastMCP uses. No extra port.
 
-**stdio transport:** A minimal async HTTP server (using `aiohttp` or raw `asyncio`) starts on `monitoring.http_port` (default 8766) to serve health, metrics, and dashboard. This is the only way to access the dashboard in stdio mode. If `dashboard_enabled: false`, only `/health` and `/metrics` are served.
+**stdio transport:** A Starlette ASGI app is started on `monitoring.http_port` (default 8766) using uvicorn in a background asyncio task. Both Starlette and uvicorn are already transitive dependencies of FastMCP — no new dependencies needed. The monitoring HTTP server is started inside the `lifespan` function using `asyncio.create_task()` to run a uvicorn `Server` instance:
 
-**New dependency for stdio HTTP serving:** The server already depends on FastMCP which brings in Starlette/uvicorn. We can reuse Starlette + uvicorn to start a minimal ASGI app on the monitoring port — no new dependency needed.
+```python
+# Inside lifespan, after collector starts:
+if config.server.transport == "stdio" and config.monitoring.enabled:
+    monitoring_app = create_monitoring_app(state)
+    uvi_config = uvicorn.Config(monitoring_app, host="127.0.0.1", port=config.monitoring.http_port, log_level="warning")
+    monitoring_server = uvicorn.Server(uvi_config)
+    monitoring_task = asyncio.create_task(monitoring_server.serve())
+```
+
+On shutdown, `monitoring_server.should_exit = True` and the task is awaited.
+
+If `dashboard_enabled: false`, only `/health` and `/metrics` are served (no static files).
 
 ---
 
@@ -200,7 +254,7 @@ Returns comprehensive metrics snapshot as JSON. Always `200`.
 
 Served at `GET /dashboard`. Single HTML page with inline or co-located JS/CSS.
 
-**Plotly.js** loaded from CDN (`https://cdn.plot.ly/plotly-2.35.0.min.js`). No build step.
+**Plotly.js** loaded from CDN by default (`https://cdn.plot.ly/plotly-2.35.0.min.js`). For air-gapped/enterprise environments, a minified copy of Plotly.js is also bundled in `static/vendor/plotly.min.js`. The dashboard HTML tries the local copy first, falls back to CDN. No build step.
 
 **Layout:**
 
@@ -218,7 +272,7 @@ Served at `GET /dashboard`. Single HTML page with inline or co-located JS/CSS.
 │ [area chart]         │ [bar chart]               │
 ├──────────────────────┼───────────────────────────┤
 │ Execution Time       │ Active Sessions            │
-│ [line: avg,p95]      │ [line chart]              │
+│ [line: avg, p95]     │ [line chart]              │
 ├──────────────────────┼───────────────────────────┤
 │ Memory Usage         │                           │
 │ [line chart]         │                           │
@@ -284,7 +338,8 @@ async def get_error_log(ctx: Context, limit: int = 20) -> dict:
     """Get recent server errors and notable events for diagnosing issues."""
 ```
 
-Returns:
+Returns only error-class events, filtered to types: `job_failed`, `blocked_function`, `engine_crash`, `health_check_fail`. Operational events (`engine_scale_up`, `job_completed`, etc.) are excluded.
+
 ```json
 {
     "events": [
@@ -295,7 +350,7 @@ Returns:
 }
 ```
 
-Reads from the `events` table via `MetricsStore`.
+Reads from the `events` table via `MetricsStore` with a type filter.
 
 ---
 
@@ -332,27 +387,30 @@ When `monitoring.enabled: false`, no background collector runs, no SQLite databa
 ```
 src/matlab_mcp/monitoring/
 ├── __init__.py
-├── collector.py          # MetricsCollector background task
-├── store.py              # MetricsStore — SQLite read/write/prune
+├── collector.py          # MetricsCollector background task + event recording
+├── store.py              # MetricsStore — async SQLite read/write/prune
 ├── health.py             # evaluate_health() logic
 ├── routes.py             # HTTP route handlers (/health, /metrics)
 ├── dashboard.py          # Dashboard sub-app + API routes
 └── static/
     ├── index.html        # Dashboard page
     ├── dashboard.js      # Plotly.js chart rendering, polling, time range
-    └── style.css         # Dashboard styling
+    ├── style.css         # Dashboard styling
+    └── vendor/
+        └── plotly.min.js # Bundled Plotly.js for air-gapped environments
 ```
 
 **Integration changes to existing files:**
 
 | File | Change |
 |------|--------|
-| `config.py` | Add `MonitoringConfig` pydantic model + add to `AppConfig` |
-| `server.py` | Start collector in lifespan, mount routes, register 3 MCP tools |
-| `server.py` cleanup_loop | Add `store.prune()` call |
-| `pool/manager.py` | Call `collector.record_event()` on scale up/down/crash/replace |
-| `security/validator.py` | Call `collector.record_event()` on blocked function |
-| `jobs/executor.py` | Call `collector.record_event()` on job completion/failure |
+| `config.py` | Add `MonitoringConfig` pydantic model + add to `AppConfig`. Add `self.monitoring.db_path` to `resolve_paths()` |
+| `server.py` | Construct `MetricsCollector` in `MatlabMCPServer.__init__()` (before other components). Start sampling task in lifespan. Mount routes. Register 3 MCP tools |
+| `server.py` cleanup_loop | Add `await store.prune(retention_days)` call |
+| `pool/manager.py` | Accept optional `collector` arg. Call `collector.record_event()` on scale up/down/crash/replace |
+| `security/validator.py` | Accept optional `collector` arg. Call `collector.record_event()` on blocked function |
+| `jobs/executor.py` | Accept optional `collector` arg. Call `collector.record_event()` on job completion/failure |
+| `session/manager.py` | Accept optional `collector` arg. Call `collector.record_event("session_created", ...)` in `create_session()` |
 | `pyproject.toml` | Add `aiosqlite>=0.19.0` dependency, `psutil` as optional |
 
 ---
