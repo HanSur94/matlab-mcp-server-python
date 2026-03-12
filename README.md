@@ -367,12 +367,16 @@ Built-in observability with a web dashboard, JSON health/metrics endpoints, and 
 
 Access at `http://localhost:8766/dashboard` (stdio) or `http://localhost:8765/dashboard` (SSE).
 
+![Dashboard Overview](docs/images/dashboard-overview.png)
+
 Features:
 - **7 live gauges**: pool utilization, engines (busy/total), active jobs, completed jobs, active sessions, avg execution time, errors/min
 - **6 time-series charts** (Plotly.js): pool utilization, job throughput, execution time (avg + p95), active sessions, memory usage, error count
 - **MATLAB execution log**: filterable table showing time, event type, MATLAB code, output, and duration for every job
 - **Time range selector**: 1h, 6h, 24h, 7d views
 - Auto-refreshes every 10 seconds
+
+![Execution Log](docs/images/dashboard-execution-log.png)
 
 ### Health Endpoint
 

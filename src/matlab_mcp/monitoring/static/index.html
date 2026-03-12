@@ -7,17 +7,21 @@
     <link rel="stylesheet" href="/dashboard/static/style.css">
     <script>
         // Load Plotly.js: local bundle first, CDN fallback
+        // Check window.Plotly after local load since placeholder files return 200
         window.plotlyReady = new Promise(function(resolve) {
-            var local = document.createElement('script');
-            local.src = '/dashboard/static/vendor/plotly.min.js';
-            local.onload = function() { resolve(); };
-            local.onerror = function() {
+            function loadCDN() {
                 var cdn = document.createElement('script');
                 cdn.src = 'https://cdn.plot.ly/plotly-2.35.0.min.js';
                 cdn.onload = function() { resolve(); };
                 cdn.onerror = function() { console.error('Failed to load Plotly.js'); resolve(); };
                 document.head.appendChild(cdn);
+            }
+            var local = document.createElement('script');
+            local.src = '/dashboard/static/vendor/plotly.min.js';
+            local.onload = function() {
+                if (window.Plotly) { resolve(); } else { loadCDN(); }
             };
+            local.onerror = function() { loadCDN(); };
             document.head.appendChild(local);
         });
     </script>
