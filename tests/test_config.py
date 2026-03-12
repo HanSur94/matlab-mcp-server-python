@@ -199,3 +199,52 @@ class TestValidation:
     def test_invalid_image_format_rejected(self):
         with pytest.raises(Exception):
             OutputConfig(static_image_format="bmp")
+
+
+# ---------------------------------------------------------------------------
+# Monitoring configuration
+# ---------------------------------------------------------------------------
+
+
+class TestMonitoringConfig:
+    def test_monitoring_defaults(self):
+        """MonitoringConfig has correct defaults."""
+        from matlab_mcp.config import MonitoringConfig
+
+        cfg = MonitoringConfig()
+        assert cfg.enabled is True
+        assert cfg.sample_interval == 10
+        assert cfg.retention_days == 7
+        assert cfg.db_path == "./monitoring/metrics.db"
+        assert cfg.dashboard_enabled is True
+        assert cfg.http_port == 8766
+
+    def test_monitoring_in_app_config(self):
+        """AppConfig includes monitoring section with defaults."""
+        from matlab_mcp.config import load_config
+
+        config = load_config(None)
+        assert hasattr(config, "monitoring")
+        assert config.monitoring.enabled is True
+        assert config.monitoring.sample_interval == 10
+
+    def test_monitoring_env_override(self, monkeypatch):
+        """Environment variables override monitoring config."""
+        from matlab_mcp.config import load_config
+
+        monkeypatch.setenv("MATLAB_MCP_MONITORING_SAMPLE_INTERVAL", "5")
+        monkeypatch.setenv("MATLAB_MCP_MONITORING_RETENTION_DAYS", "30")
+        monkeypatch.setenv("MATLAB_MCP_MONITORING_ENABLED", "false")
+        config = load_config(None)
+        assert config.monitoring.sample_interval == 5
+        assert config.monitoring.retention_days == 30
+        assert config.monitoring.enabled is False
+
+    def test_monitoring_db_path_resolved(self, tmp_path):
+        """monitoring.db_path is resolved to absolute path."""
+        from matlab_mcp.config import load_config
+        from pathlib import Path
+
+        config = load_config(None)
+        config.resolve_paths(tmp_path)
+        assert Path(config.monitoring.db_path).is_absolute()

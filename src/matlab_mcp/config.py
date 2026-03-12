@@ -94,6 +94,17 @@ class SessionsConfig(BaseModel):
     job_retention_seconds: int = 86400
 
 
+class MonitoringConfig(BaseModel):
+    """Monitoring and dashboard configuration."""
+
+    enabled: bool = True
+    sample_interval: int = 10
+    retention_days: int = 7
+    db_path: str = "./monitoring/metrics.db"
+    dashboard_enabled: bool = True
+    http_port: int = 8766
+
+
 class AppConfig(BaseModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     pool: PoolConfig = Field(default_factory=PoolConfig)
@@ -105,6 +116,7 @@ class AppConfig(BaseModel):
     code_checker: CodeCheckerConfig = Field(default_factory=CodeCheckerConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     sessions: SessionsConfig = Field(default_factory=SessionsConfig)
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
 
     # Internal: stored after resolution so validators can use it
     _config_dir: Optional[Path] = None
@@ -138,6 +150,7 @@ class AppConfig(BaseModel):
         self.server.log_file = _resolve(self.server.log_file)
         self.execution.temp_dir = _resolve(self.execution.temp_dir)
         self.custom_tools.config_file = _resolve(self.custom_tools.config_file)
+        self.monitoring.db_path = str((base_dir / self.monitoring.db_path).resolve())
 
 
 def _apply_env_overrides(data: dict) -> dict:
