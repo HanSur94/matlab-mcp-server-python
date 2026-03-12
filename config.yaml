@@ -1,0 +1,74 @@
+server:
+  name: "matlab-mcp-server"
+  transport: "stdio"           # stdio | sse
+  host: "0.0.0.0"             # only for SSE transport
+  port: 8765                   # only for SSE transport
+  log_level: "info"            # debug | info | warning | error
+  log_file: "./logs/server.log"
+  result_dir: "./results"      # resolved to absolute path at startup
+  drain_timeout_seconds: 300   # max wait for running jobs during graceful shutdown
+
+pool:
+  min_engines: 2
+  max_engines: 10               # capped at 4 on macOS by default
+  scale_down_idle_timeout: 900   # seconds (15 min)
+  engine_start_timeout: 120      # seconds to wait for MATLAB to start
+  health_check_interval: 60      # seconds between health pings
+  proactive_warmup_threshold: 0.8  # utilization ratio to trigger warmup
+  queue_max_size: 50
+  matlab_root: null              # auto-detect, or set explicit path
+
+execution:
+  sync_timeout: 30               # seconds before auto-promoting to async
+  max_execution_time: 86400      # hard limit per job (24h)
+  workspace_isolation: true
+  engine_affinity: false         # pin session to engine for workspace persistence
+  temp_dir: "./temp"
+  temp_cleanup_on_disconnect: true
+
+workspace:
+  default_paths:                 # added to MATLAB path on engine start/reset
+    - "/shared/custom_libs"
+    - "/shared/data"
+  startup_commands:              # run on each engine start and after workspace reset
+    - "format long"
+
+toolboxes:
+  mode: "whitelist"              # whitelist | blacklist | all
+  list:
+    - "Signal Processing Toolbox"
+    - "Optimization Toolbox"
+    - "Statistics and Machine Learning Toolbox"
+    - "Image Processing Toolbox"
+
+custom_tools:
+  config_file: "./custom_tools.yaml"
+
+security:
+  blocked_functions_enabled: true
+  blocked_functions:
+    - "system"
+    - "unix"
+    - "dos"
+    - "!"
+  max_upload_size_mb: 100
+  require_proxy_auth: false      # set true to acknowledge SSE is behind auth proxy
+
+code_checker:
+  enabled: true
+  auto_check_before_execute: false
+  severity_levels: ["error", "warning"]
+
+output:
+  plotly_conversion: true
+  static_image_format: "png"     # png | jpg | svg
+  static_image_dpi: 150
+  thumbnail_enabled: true
+  thumbnail_max_width: 400
+  large_result_threshold: 10000  # elements — above this, save tabular/matrix data to file
+  max_inline_text_length: 50000  # chars — above this, save text output to file
+
+sessions:
+  max_sessions: 50
+  session_timeout: 3600          # seconds of inactivity before cleanup
+  job_retention_seconds: 86400   # how long to keep completed job metadata
