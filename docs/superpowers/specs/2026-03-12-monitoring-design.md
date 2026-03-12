@@ -141,6 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
 - `get_latest()` — most recent metrics sample (all metrics at the latest timestamp)
 - `get_history(metric_name, hours)` — time-series for a specific metric over N hours
 - `get_events(limit, event_type=None)` — recent events, optionally filtered by type
+- `close()` — close the underlying aiosqlite connection; called once during shutdown
 - `get_aggregates(hours)` — computed aggregates from stored metrics and events rows:
   ```python
   {
@@ -425,7 +426,7 @@ src/matlab_mcp/monitoring/
 | `pool/manager.py` | Accept optional `collector` arg. Call `collector.record_event()` on scale up/down/crash/replace |
 | `security/validator.py` | Accept optional `collector` arg. Call `collector.record_event()` on blocked function |
 | `jobs/executor.py` | Accept optional `collector` arg. Call `collector.record_event()` on job completion/failure |
-| `session/manager.py` | Accept optional `collector` arg. Call `collector.record_event("session_created", ...)` in `create_session()` |
+| `session/manager.py` | Accept optional `collector` arg. Call `collector.record_event("session_created", ...)` in both `create_session()` and `get_or_create_default()` (only when a new session is actually created) |
 | `pyproject.toml` | Add `aiosqlite>=0.19.0` dependency, `psutil` as optional |
 
 ---
@@ -437,10 +438,11 @@ src/matlab_mcp/monitoring/
 | `aiosqlite>=0.19.0` | yes | Async SQLite access |
 | `psutil>=5.9.0` | optional | System metrics (memory, CPU) |
 
-`psutil` is listed as an optional extra in `pyproject.toml`:
+`psutil` and `uvicorn` are listed as optional extras in `pyproject.toml`. Note: `uvicorn` is currently a transitive dependency of `fastmcp>=2.0.0,<3.0.0`, but listing it explicitly ensures the stdio monitoring HTTP server works even if a future FastMCP version drops it.
+
 ```toml
 [project.optional-dependencies]
-monitoring = ["psutil>=5.9.0"]
+monitoring = ["psutil>=5.9.0", "uvicorn>=0.20.0"]
 ```
 
 ---
