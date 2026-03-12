@@ -95,8 +95,6 @@ class SessionsConfig(BaseModel):
 
 
 class MonitoringConfig(BaseModel):
-    """Monitoring and dashboard configuration."""
-
     enabled: bool = True
     sample_interval: int = 10
     retention_days: int = 7
@@ -150,7 +148,7 @@ class AppConfig(BaseModel):
         self.server.log_file = _resolve(self.server.log_file)
         self.execution.temp_dir = _resolve(self.execution.temp_dir)
         self.custom_tools.config_file = _resolve(self.custom_tools.config_file)
-        self.monitoring.db_path = str((base_dir / self.monitoring.db_path).resolve())
+        self.monitoring.db_path = _resolve(self.monitoring.db_path)
 
 
 def _apply_env_overrides(data: dict) -> dict:

@@ -9,6 +9,7 @@ import pytest
 from matlab_mcp.config import (
     AppConfig,
     ExecutionConfig,
+    MonitoringConfig,
     OutputConfig,
     PoolConfig,
     SecurityConfig,
@@ -209,8 +210,6 @@ class TestValidation:
 class TestMonitoringConfig:
     def test_monitoring_defaults(self):
         """MonitoringConfig has correct defaults."""
-        from matlab_mcp.config import MonitoringConfig
-
         cfg = MonitoringConfig()
         assert cfg.enabled is True
         assert cfg.sample_interval == 10
@@ -221,17 +220,14 @@ class TestMonitoringConfig:
 
     def test_monitoring_in_app_config(self):
         """AppConfig includes monitoring section with defaults."""
-        from matlab_mcp.config import load_config
-
         config = load_config(None)
         assert hasattr(config, "monitoring")
+        assert isinstance(config.monitoring, MonitoringConfig)
         assert config.monitoring.enabled is True
         assert config.monitoring.sample_interval == 10
 
     def test_monitoring_env_override(self, monkeypatch):
         """Environment variables override monitoring config."""
-        from matlab_mcp.config import load_config
-
         monkeypatch.setenv("MATLAB_MCP_MONITORING_SAMPLE_INTERVAL", "5")
         monkeypatch.setenv("MATLAB_MCP_MONITORING_RETENTION_DAYS", "30")
         monkeypatch.setenv("MATLAB_MCP_MONITORING_ENABLED", "false")
@@ -242,9 +238,9 @@ class TestMonitoringConfig:
 
     def test_monitoring_db_path_resolved(self, tmp_path):
         """monitoring.db_path is resolved to absolute path."""
-        from matlab_mcp.config import load_config
-        from pathlib import Path
-
-        config = load_config(None)
-        config.resolve_paths(tmp_path)
-        assert Path(config.monitoring.db_path).is_absolute()
+        cfg = MonitoringConfig()
+        assert not Path(cfg.db_path).is_absolute()  # relative by default
+        app = AppConfig(monitoring=cfg)
+        app.resolve_paths(tmp_path)
+        assert Path(app.monitoring.db_path).is_absolute()
+        assert str(tmp_path) in app.monitoring.db_path
