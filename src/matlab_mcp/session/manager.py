@@ -11,7 +11,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +193,3 @@ class SessionManager:
     def session_count(self) -> int:
         """Current number of active sessions."""
         return len(self._sessions)
-
-
-# Avoid forward-reference issues with Any type hint
-from typing import Any  # noqa: E402  (import at bottom intentionally)

@@ -88,6 +88,8 @@ class JobExecutor:
                 message=str(exc),
             )
             await self._pool.release(engine)
+            if self._collector:
+                self._collector.record_event("job_failed", {"job_id": job.job_id, "error": str(exc)[:200]})
             return self._error_result(job)
 
         # 5. Wait for sync_timeout
@@ -103,7 +105,7 @@ class JobExecutor:
                 job.mark_completed(result)
                 await self._pool.release(engine)
                 if self._collector:
-                    elapsed_ms = (job.completed_at - job.started_at).total_seconds() * 1000 if job.started_at and job.completed_at else 0
+                    elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
                     self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
                 return {"status": "completed", "job_id": job.job_id, **result}
             except (TimeoutError, concurrent.futures.TimeoutError, asyncio.TimeoutError):
@@ -168,7 +170,7 @@ class JobExecutor:
             result = self._build_result(engine, raw_result, job, temp_dir)
             job.mark_completed(result)
             if self._collector:
-                elapsed_ms = (job.completed_at - job.started_at).total_seconds() * 1000 if job.started_at and job.completed_at else 0
+                elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
                 self._collector.record_event("job_completed", {"job_id": job.job_id, "execution_ms": elapsed_ms})
         except asyncio.CancelledError:
             job.mark_cancelled()
