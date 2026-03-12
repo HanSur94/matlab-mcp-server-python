@@ -166,7 +166,7 @@ MATLAB code can report progress via the `mcp_progress.m` helper:
 **Function signature:**
 ```matlab
 mcp_progress(job_id, percentage, message)
-% job_id: string - provided as a MATLAB variable when job starts
+% job_id: string - use __mcp_job_id__ variable (auto-injected before your code runs)
 % percentage: double - 0.0 to 100.0
 % message: string (optional) - e.g., "Iteration 500/1000"
 ```
@@ -179,7 +179,7 @@ mcp_progress(job_id, percentage, message)
 - Each call overwrites the file (latest progress only, not a log)
 - `get_job_status` reads this file if it exists and includes the progress in the response
 - Polling interval: server reads the file on demand when `get_job_status` is called (no background polling)
-- The `mcp_job_id` variable is automatically injected into the MATLAB workspace before job execution
+- The `__mcp_job_id__` variable is automatically injected into the MATLAB workspace before user code runs. This is a reserved variable name — user code must not overwrite it, or progress reporting will break
 
 ## Security
 
@@ -254,9 +254,9 @@ If input is a `.m` file path (within session temp dir): call `checkcode` directl
 
 ### get_workspace Behavior
 
-`get_workspace` returns variables currently in the engine's workspace. Since workspace isolation clears variables between different sessions' requests, this tool is most useful during a sequence of `execute_code` calls within the same session where an engine is retained (i.e., during async jobs or when `workspace_persistence: true` is configured for the session).
+`get_workspace` returns variables currently in the engine's workspace. Since workspace isolation clears variables between different sessions' requests, this tool is most useful during a sequence of `execute_code` calls within the same session where an engine is retained (i.e., during async jobs or when `engine_affinity: true` is configured).
 
-**Engine affinity mode** (optional, configurable): when enabled, a session is pinned to a specific engine for its lifetime, preserving workspace state across multiple `execute_code` calls. The trade-off is reduced pool flexibility.
+**Engine affinity mode** (`engine_affinity: true` in config): when enabled, a session is pinned to a specific engine for its lifetime, preserving workspace state across multiple `execute_code` calls. The trade-off is reduced pool flexibility.
 
 ### Custom Lib Tools (config-driven)
 
@@ -284,6 +284,43 @@ Each entry becomes a first-class MCP tool with proper schema. The server validat
 Configurable via whitelist/blacklist/all mode in `config.yaml`. Only listed toolboxes have functions discoverable via `list_functions`.
 
 ## Result Formatting
+
+### Job Status Response (get_job_status)
+
+In-progress job:
+```json
+{
+  "job_id": "j-abc123",
+  "status": "running",
+  "progress": {
+    "percentage": 50.0,
+    "message": "Iteration 500/1000",
+    "timestamp": "2026-03-12T10:30:00"
+  },
+  "elapsed_seconds": 120.5,
+  "engine_id": "eng-3"
+}
+```
+
+Completed job (agent should call `get_job_result` to fetch full output):
+```json
+{
+  "job_id": "j-abc123",
+  "status": "completed",
+  "elapsed_seconds": 245.1,
+  "message": "Job completed. Use get_job_result to retrieve output."
+}
+```
+
+Pending job:
+```json
+{
+  "job_id": "j-abc456",
+  "status": "pending",
+  "queue_position": 3,
+  "estimated_wait_seconds": 45
+}
+```
 
 ### Success Result Structure
 
@@ -367,6 +404,7 @@ server:
   log_level: "info"            # debug | info | warning | error
   log_file: "./logs/server.log"
   result_dir: "./results"      # resolved to absolute path at startup
+  drain_timeout_seconds: 300   # max wait for running jobs during graceful shutdown
 
 pool:
   min_engines: 2
