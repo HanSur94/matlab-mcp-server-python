@@ -1,0 +1,31 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+.header { background: #1a1a2e; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.header .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.header .status .dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot.healthy { background: #4caf50; }
+.dot.degraded { background: #ff9800; }
+.dot.unhealthy { background: #f44336; }
+.gauges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 16px 24px; }
+.gauge-card { background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.gauge-card .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+.gauge-card .value { font-size: 28px; font-weight: 700; margin: 8px 0; }
+.time-range { padding: 8px 24px; display: flex; gap: 8px; }
+.time-range button { padding: 6px 16px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer; font-size: 13px; }
+.time-range button.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 16px; }
+.chart-card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.chart-card h3 { font-size: 14px; margin-bottom: 8px; color: #555; }
+.events-section { padding: 0 24px 24px; }
+.events-card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.events-card h3 { font-size: 14px; margin-bottom: 12px; color: #555; display: flex; justify-content: space-between; }
+.events-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.events-table th { text-align: left; padding: 8px; border-bottom: 2px solid #eee; color: #666; }
+.events-table td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+.events-table .type { font-weight: 600; }
+.type-job_failed, .type-engine_crash { color: #f44336; }
+.type-blocked_function, .type-health_check_fail { color: #ff9800; }
+.type-engine_scale_up, .type-job_completed { color: #4caf50; }
+.type-engine_scale_down { color: #2196f3; }
+@media (max-width: 768px) { .gauges, .charts { grid-template-columns: 1fr; } }
