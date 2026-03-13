@@ -105,7 +105,7 @@ pool:
 
 **Symptom:** No interactive plot returned, only text output
 
-**Explanation:** The Plotly converter (`mcp_fig2plotly.m`) supports common plot types. Some complex or custom plot types may not convert.
+**Explanation:** The Plotly converter (`mcp_extract_props.m`) supports common plot types. Some complex or custom plot types may not convert.
 
 **Solutions:**
 

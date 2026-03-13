@@ -268,11 +268,43 @@ class JobExecutor:
         except Exception:
             pass
 
-        # Figures (placeholder — Plotly conversion would go here)
+        # Figures — extract properties and convert to Plotly
         figures: list = []
-        if self._config.output.plotly_conversion:
-            # Real implementation would scan for figure handles
-            pass
+        if self._config.output.plotly_conversion and temp_dir is not None:
+            try:
+                import glob as glob_mod
+                from matlab_mcp.output.plotly_convert import load_plotly_json
+                from matlab_mcp.output.plotly_style_mapper import convert_figure
+
+                # Run MATLAB-side figure extraction
+                escaped_dir = str(temp_dir).replace("\\", "\\\\").replace("'", "\\'")
+                extract_code = (
+                    f"__mcp_figs = findobj(0, 'Type', 'figure');\n"
+                    f"for __mcp_i = 1:length(__mcp_figs)\n"
+                    f"    mcp_extract_props(__mcp_figs(__mcp_i), "
+                    f"fullfile('{escaped_dir}', sprintf('{job.job_id}_fig%d.json', __mcp_i)));\n"
+                    f"    close(__mcp_figs(__mcp_i));\n"
+                    f"end\n"
+                    f"clear __mcp_figs __mcp_i;\n"
+                )
+                try:
+                    engine.execute(extract_code, background=False)
+                except Exception as exc:
+                    logger.warning("Figure extraction failed: %s", exc)
+
+                # Load and convert each figure JSON
+                fig_pattern = os.path.join(temp_dir, f"{job.job_id}_fig*.json")
+                for fig_file in sorted(glob_mod.glob(fig_pattern)):
+                    matlab_data = load_plotly_json(fig_file)
+                    if matlab_data:
+                        plotly_fig = convert_figure(matlab_data)
+                        figures.append(plotly_fig)
+                    try:
+                        os.remove(fig_file)
+                    except OSError:
+                        pass
+            except Exception as exc:
+                logger.warning("Figure conversion pipeline failed: %s", exc)
 
         # Files in temp_dir
         files: list = []

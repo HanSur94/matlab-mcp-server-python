@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "layout_type": "subplot",
+  "background_color": [1, 1, 1],
+  "grid": {"rows": 2, "cols": 1},
+  "axes": [
+    {
+      "grid_index": {"row": 1, "col": 1, "rowspan": 1, "colspan": 1},
+      "position": [0.13, 0.58, 0.775, 0.34],
+      "title": {"text": "Top", "font_name": "Helvetica", "font_size": 12, "font_weight": "normal"},
+      "xlabel": {}, "ylabel": {},
+      "xlim": [0, 10], "ylim": [0, 100],
+      "xgrid": false, "ygrid": false,
+      "xdir": "normal", "ydir": "normal",
+      "xtick": null, "ytick": null,
+      "xticklabels": null, "yticklabels": null,
+      "tick_font": {"font_name": "Helvetica", "font_size": 10},
+      "color": [1, 1, 1],
+      "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+      "legend": {"visible": false, "entries": [], "location": "best"},
+      "children": [
+        {
+          "type": "bar",
+          "xdata": [1, 2, 3, 4, 5],
+          "ydata": [20, 40, 60, 80, 100],
+          "face_color": [0, 0.447, 0.741],
+          "edge_color": [0, 0, 0],
+          "bar_width": 0.8,
+          "display_name": "data"
+        }
+      ]
+    },
+    {
+      "grid_index": {"row": 2, "col": 1, "rowspan": 1, "colspan": 1},
+      "position": [0.13, 0.11, 0.775, 0.34],
+      "title": {"text": "Bottom", "font_name": "Helvetica", "font_size": 12, "font_weight": "normal"},
+      "xlabel": {}, "ylabel": {},
+      "xlim": [0, 10], "ylim": [-1, 1],
+      "xgrid": true, "ygrid": true,
+      "xdir": "normal", "ydir": "normal",
+      "xtick": null, "ytick": null,
+      "xticklabels": null, "yticklabels": null,
+      "tick_font": {"font_name": "Helvetica", "font_size": 10},
+      "color": [1, 1, 1],
+      "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+      "legend": {"visible": false, "entries": [], "location": "best"},
+      "children": [
+        {
+          "type": "line",
+          "xdata": [0, 5, 10],
+          "ydata": [0, 1, -1],
+          "color": [0.85, 0.33, 0.1],
+          "line_style": "--", "line_width": 1,
+          "display_name": "",
+          "marker": "none", "marker_size": 6,
+          "marker_face_color": "none", "marker_edge_color": "auto"
+        }
+      ]
+    }
+  ]
+}

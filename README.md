@@ -661,7 +661,7 @@ src/matlab_mcp/
 ├── security/
 │   └── validator.py   # Function blocklist, filename sanitization
 └── matlab_helpers/
-    ├── mcp_fig2plotly.m
+    ├── mcp_extract_props.m
     ├── mcp_checkcode.m
     └── mcp_progress.m
 ```

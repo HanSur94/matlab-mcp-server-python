@@ -112,11 +112,11 @@ Structures tool responses:
 - Success/error response builders
 - Delegates to Plotly converter and thumbnail generator
 
-### Plotly Converter (`output/plotly_convert.py` + `matlab_helpers/mcp_fig2plotly.m`)
+### Plotly Converter (`output/plotly_convert.py` + `matlab_helpers/mcp_extract_props.m`)
 
 Converts MATLAB figures to interactive Plotly JSON:
 
-1. MATLAB-side: `mcp_fig2plotly.m` extracts plot data (line, scatter, bar, histogram, surface, image)
+1. MATLAB-side: `mcp_extract_props.m` extracts raw figure properties (line, scatter, bar, histogram, surface, image)
 2. Python-side: `load_plotly_json()` reads the saved JSON file
 3. Result includes: Plotly JSON + static PNG + optional thumbnail
 
