@@ -1,7 +1,7 @@
 # Plotly Visual Fidelity Conversion Layer
 
 **Date:** 2026-03-13
-**Status:** Draft (rev 2 — addressing spec review)
+**Status:** Draft (rev 4)
 
 ## Problem
 
@@ -292,7 +292,8 @@ def compute_domains(grid, axes_list):
         x_domain = [max(0, col_start + gap_x/2), min(1, col_end - gap_x/2)]
         y_domain = [max(0, 1 - row_end + gap_y/2), min(1, 1 - row_start - gap_y/2)]
         # Clamp to [0, 1] to handle spanning tiles that exceed grid bounds
-        # Assign to xaxis<n>, yaxis<n>
+        domains.append({"x": x_domain, "y": y_domain})
+    return domains  # list parallel to axes_list, used to set xaxis<n>/yaxis<n> domain
 ```
 
 ### Font Mapping
@@ -311,7 +312,15 @@ def map_font(font_name):
 
 ### Where the Pipeline Lives: `executor._build_result`
 
-The figure extraction pipeline belongs in `executor._build_result()`, which already has a placeholder (`figures: list = []` with a `plotly_conversion` config guard). The executor already receives `temp_dir` via `executor.execute()` — no changes to `tools/core.py` or `execute_code_impl` are needed.
+The figure extraction pipeline belongs in `executor._build_result()`, which already has a placeholder (`figures: list = []` with a `plotly_conversion` config guard).
+
+### Wiring `temp_dir` Through the Call Chain
+
+Currently `temp_dir` is retrieved in `server.py` (`state._get_temp_dir(session_id)`) but never passed forward. Three files need changes:
+
+1. **`server.py`** — pass `temp_dir=temp_dir` to `execute_code_impl()` (the variable is already in scope)
+2. **`tools/core.py`** — add `temp_dir: Optional[str] = None` parameter to `execute_code_impl`, forward it to `executor.execute(session_id=session_id, code=code, temp_dir=temp_dir)`
+3. **`executor.py`** — `execute()` already accepts `temp_dir: Optional[str] = None`; no signature change needed, but `_build_result` uses it for the figure pipeline
 
 ### `plotly_convert.py` Role
 
@@ -425,6 +434,14 @@ These tests require a live MATLAB engine and are marked with `@pytest.mark.matla
 - Multi-subplot figure
 - Figure with legend and custom fonts
 
+### Existing Tests (`test_output.py`) — Required Updates
+
+The existing `test_load_valid_json` test passes a dict without `schema_version`. After the `plotly_convert.py` change, this would return `None` and fail. Required changes:
+- Update `test_load_valid_json` fixture to include `"schema_version": 1`
+- Add `test_load_missing_schema_version` — verify returns `None` with warning log
+- Add `test_load_future_schema_version` — verify `schema_version: 99` returns `None` with warning log
+- Add `test_load_schema_version_1` — verify valid v1 JSON loads successfully
+
 ### Fixture-Based Tests (`test_plotly_conversion_fixtures.py`)
 
 Pre-recorded MATLAB JSON fixtures in `tests/fixtures/matlab_figures/` enable CI testing without MATLAB:
@@ -459,8 +476,11 @@ Pre-recorded MATLAB JSON fixtures in `tests/fixtures/matlab_figures/` enable CI 
 |---|---|
 | `src/matlab_mcp/matlab_helpers/mcp_fig2plotly.m` | Rewrite -> rename to `mcp_extract_props.m` |
 | `src/matlab_mcp/output/plotly_style_mapper.py` | New |
+| `pyproject.toml` | Modify (add `plotly>=5.9.0` to dependencies) |
 | `src/matlab_mcp/output/plotly_convert.py` | Modify (add schema_version validation, update docstring) |
 | `src/matlab_mcp/jobs/executor.py` | Modify (implement figure extraction + conversion in `_build_result`) |
+| `src/matlab_mcp/tools/core.py` | Modify (add `temp_dir` param to `execute_code_impl`, forward to executor) |
+| `src/matlab_mcp/server.py` | Modify (pass `temp_dir` to `execute_code_impl`) |
 | `tests/test_output.py` | Modify (update for new JSON schema) |
 | `tests/test_plotly_style_mapper.py` | New |
 | `tests/test_subplot_layout.py` | New |
