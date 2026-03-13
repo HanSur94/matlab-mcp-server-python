@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "layout_type": "single",
+  "background_color": [0.94, 0.94, 0.94],
+  "axes": [
+    {
+      "grid_index": {"row": 1, "col": 1, "rowspan": 1, "colspan": 1},
+      "position": [0.13, 0.11, 0.775, 0.815],
+      "title": {"text": "Sine Wave", "font_name": "Helvetica", "font_size": 14, "font_weight": "bold"},
+      "xlabel": {"text": "x", "font_name": "Helvetica", "font_size": 12},
+      "ylabel": {"text": "sin(x)", "font_name": "Helvetica", "font_size": 12},
+      "xlim": [0, 6.28], "ylim": [-1, 1],
+      "xgrid": true, "ygrid": true,
+      "xdir": "normal", "ydir": "normal",
+      "xtick": [0, 1.57, 3.14, 4.71, 6.28],
+      "ytick": [-1, -0.5, 0, 0.5, 1],
+      "xticklabels": null, "yticklabels": null,
+      "tick_font": {"font_name": "Helvetica", "font_size": 10},
+      "color": [1, 1, 1],
+      "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+      "legend": {"visible": false, "entries": [], "location": "best"},
+      "children": [
+        {
+          "type": "line",
+          "xdata": [0, 1.57, 3.14, 4.71, 6.28],
+          "ydata": [0, 1, 0, -1, 0],
+          "color": [0, 0.447, 0.741],
+          "line_style": "-", "line_width": 2,
+          "display_name": "sin(x)",
+          "marker": "none", "marker_size": 6,
+          "marker_face_color": "none", "marker_edge_color": "auto"
+        }
+      ]
+    }
+  ]
+}

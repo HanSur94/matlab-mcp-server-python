@@ -33,6 +33,9 @@ matlab-mcp = "matlab_mcp.server:main"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "matlab: tests requiring a live MATLAB engine",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/matlab_mcp"]
