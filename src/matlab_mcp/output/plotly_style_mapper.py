@@ -491,9 +491,14 @@ def convert_figure(matlab_fig: dict) -> dict:
     all_traces: list[dict] = []
     merged_layout: dict[str, Any] = {}
 
-    # Background colors
+    # Background colors and global font color
     bg = matlab_fig.get("background_color", [0.94, 0.94, 0.94])
     merged_layout["paper_bgcolor"] = rgb_to_css(bg)
+
+    # Derive font color from background brightness (dark bg -> light text)
+    bg_luminance = 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2]
+    font_color = "rgb(204, 204, 204)" if bg_luminance < 0.5 else "rgb(34, 34, 34)"
+    merged_layout["font"] = {"color": font_color}
 
     # Compute subplot domains
     domains = compute_domains(grid, axes_list)
