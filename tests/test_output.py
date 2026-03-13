@@ -479,19 +479,50 @@ class TestGenerateThumbnail:
 # ---------------------------------------------------------------------------
 
 class TestLoadPlotlyJson:
-    def test_load_valid_json(self, tmp_path):
-        """load_plotly_json should parse a valid Plotly JSON file."""
+    def test_load_valid_json_with_schema_version(self, tmp_path):
+        """load_plotly_json should parse a valid JSON file with schema_version 1."""
         from matlab_mcp.output.plotly_convert import load_plotly_json
 
-        data = {"data": [{"type": "scatter", "x": [1, 2], "y": [3, 4]}], "layout": {}}
+        data = {"schema_version": 1, "layout_type": "single", "axes": []}
         json_file = tmp_path / "fig.json"
         json_file.write_text(json.dumps(data), encoding="utf-8")
 
         result = load_plotly_json(str(json_file))
 
         assert result is not None
-        assert "data" in result
-        assert result["data"][0]["type"] == "scatter"
+        assert result["schema_version"] == 1
+
+    def test_load_missing_schema_version_returns_none(self, tmp_path):
+        """load_plotly_json should return None when schema_version is absent."""
+        from matlab_mcp.output.plotly_convert import load_plotly_json
+
+        data = {"data": [{"type": "scatter"}], "layout": {}}
+        json_file = tmp_path / "fig.json"
+        json_file.write_text(json.dumps(data), encoding="utf-8")
+
+        result = load_plotly_json(str(json_file))
+        assert result is None
+
+    def test_load_future_schema_version_returns_none(self, tmp_path):
+        """load_plotly_json should return None for unsupported schema_version."""
+        from matlab_mcp.output.plotly_convert import load_plotly_json
+
+        data = {"schema_version": 99, "layout_type": "single", "axes": []}
+        json_file = tmp_path / "fig.json"
+        json_file.write_text(json.dumps(data), encoding="utf-8")
+
+        result = load_plotly_json(str(json_file))
+        assert result is None
+
+    def test_load_empty_dict_returns_none(self, tmp_path):
+        """load_plotly_json should return None for {} (no schema_version)."""
+        from matlab_mcp.output.plotly_convert import load_plotly_json
+
+        empty_file = tmp_path / "empty.json"
+        empty_file.write_text("{}", encoding="utf-8")
+
+        result = load_plotly_json(str(empty_file))
+        assert result is None
 
     def test_load_missing_file_returns_none(self, tmp_path):
         """load_plotly_json should return None for a non-existent file."""
@@ -511,7 +542,7 @@ class TestLoadPlotlyJson:
         assert result is None
 
     def test_load_non_dict_json_returns_none(self, tmp_path):
-        """load_plotly_json should return None if JSON root is not a dict."""
+        """load_plotly_json should return None for a JSON list."""
         from matlab_mcp.output.plotly_convert import load_plotly_json
 
         list_file = tmp_path / "list.json"
@@ -519,13 +550,3 @@ class TestLoadPlotlyJson:
 
         result = load_plotly_json(str(list_file))
         assert result is None
-
-    def test_load_empty_dict(self, tmp_path):
-        """load_plotly_json should return an empty dict for {}."""
-        from matlab_mcp.output.plotly_convert import load_plotly_json
-
-        empty_file = tmp_path / "empty.json"
-        empty_file.write_text("{}", encoding="utf-8")
-
-        result = load_plotly_json(str(empty_file))
-        assert result == {}
