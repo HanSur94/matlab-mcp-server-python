@@ -131,14 +131,22 @@ function ax_data = mcp_extract_axes_data(ax, layout_type, tl)
         ax_data.legend = struct('visible', false, 'entries', {{}}, 'location', 'best');
     end
 
-    % Children
+    % Children — check for FastPlot first, then standard MATLAB children
     ax_data.children = {};
-    children = get(ax, 'Children');
-    for ch_idx = 1:length(children)
-        child = children(ch_idx);
-        child_data = mcp_extract_child_data(child);
-        if ~isempty(child_data)
-            ax_data.children{end+1} = child_data;
+
+    fp_obj = mcp_find_fastplot(ax);
+    if ~isempty(fp_obj)
+        % FastPlot detected — extract raw data (full resolution) and thresholds
+        ax_data.children = mcp_extract_fastplot(fp_obj, ax);
+    else
+        % Standard MATLAB children
+        children = get(ax, 'Children');
+        for ch_idx = 1:length(children)
+            child = children(ch_idx);
+            child_data = mcp_extract_child_data(child);
+            if ~isempty(child_data)
+                ax_data.children{end+1} = child_data;
+            end
         end
     end
 end
@@ -226,6 +234,172 @@ function child_data = mcp_extract_child_data(child)
         otherwise
             child_data = [];
             return;
+    end
+end
+
+
+function fp_obj = mcp_find_fastplot(ax)
+%MCP_FIND_FASTPLOT Find a FastPlot object that owns the given axes.
+%   Searches the base workspace for FastPlot objects whose hAxes matches ax.
+    fp_obj = [];
+    try
+        vars = evalin('base', 'whos');
+        for i = 1:length(vars)
+            if strcmp(vars(i).class, 'FastPlot')
+                fp = evalin('base', vars(i).name);
+                if isvalid(fp) && isprop(fp, 'hAxes') && ~isempty(fp.hAxes) && fp.hAxes == ax
+                    fp_obj = fp;
+                    return;
+                end
+            end
+        end
+    catch
+        % FastPlot not available or not found
+    end
+end
+
+
+function children = mcp_extract_fastplot(fp, ax)
+%MCP_EXTRACT_FASTPLOT Extract full-resolution data from a FastPlot object.
+%   Returns a cell array of child structs with raw data, thresholds, and violations.
+    children = {};
+
+    % Extract lines at full resolution from FastPlot's internal data
+    if isprop(fp, 'Lines')
+        for i = 1:length(fp.Lines)
+            L = fp.Lines(i);
+            child = struct();
+            child.type = 'line';
+
+            % Get FULL resolution data from FastPlot's raw storage
+            if isfield(L, 'X') && isfield(L, 'Y')
+                xraw = L.X;
+                yraw = L.Y;
+
+                % Cap at 50,000 points for JSON size — downsample if larger
+                maxpts = 50000;
+                if length(xraw) > maxpts
+                    step = ceil(length(xraw) / maxpts);
+                    idx = 1:step:length(xraw);
+                    % Always include last point
+                    if idx(end) ~= length(xraw)
+                        idx = [idx, length(xraw)];
+                    end
+                    child.xdata = xraw(idx);
+                    child.ydata = yraw(idx);
+                else
+                    child.xdata = xraw;
+                    child.ydata = yraw;
+                end
+            else
+                % Fallback to rendered line handle
+                if isfield(L, 'hLine') && ~isempty(L.hLine) && isvalid(L.hLine)
+                    child.xdata = get(L.hLine, 'XData');
+                    child.ydata = get(L.hLine, 'YData');
+                else
+                    continue;
+                end
+            end
+
+            % Get line style from Options or from handle
+            if isfield(L, 'Options') && isfield(L.Options, 'Color')
+                child.color = L.Options.Color;
+            elseif isfield(L, 'hLine') && ~isempty(L.hLine) && isvalid(L.hLine)
+                child.color = get(L.hLine, 'Color');
+            else
+                child.color = [0 0.447 0.741];
+            end
+
+            if isfield(L, 'Options') && isfield(L.Options, 'LineWidth')
+                child.line_width = L.Options.LineWidth;
+            elseif isfield(L, 'hLine') && ~isempty(L.hLine) && isvalid(L.hLine)
+                child.line_width = get(L.hLine, 'LineWidth');
+            else
+                child.line_width = 1;
+            end
+
+            if isfield(L, 'Options') && isfield(L.Options, 'LineStyle')
+                child.line_style = L.Options.LineStyle;
+            else
+                child.line_style = '-';
+            end
+
+            if isfield(L, 'Options') && isfield(L.Options, 'DisplayName')
+                child.display_name = L.Options.DisplayName;
+            else
+                child.display_name = '';
+            end
+
+            child.marker = 'none';
+            child.marker_size = 6;
+            child.marker_face_color = 'none';
+            child.marker_edge_color = 'auto';
+
+            children{end+1} = child;
+        end
+    end
+
+    % Extract thresholds
+    if isprop(fp, 'Thresholds')
+        for i = 1:length(fp.Thresholds)
+            T = fp.Thresholds(i);
+
+            % Threshold line
+            child = struct();
+            child.type = 'line';
+            xl = get(ax, 'XLim');
+            child.xdata = xl;
+            child.ydata = [T.Value, T.Value];
+
+            if isfield(T, 'Color') && ~isempty(T.Color)
+                child.color = T.Color;
+            else
+                child.color = [1 0 0];
+            end
+
+            if isfield(T, 'LineStyle') && ~isempty(T.LineStyle)
+                child.line_style = T.LineStyle;
+            else
+                child.line_style = '--';
+            end
+
+            child.line_width = 1.5;
+
+            if isfield(T, 'Label') && ~isempty(T.Label)
+                child.display_name = T.Label;
+            else
+                child.display_name = sprintf('Threshold %.2f', T.Value);
+            end
+
+            child.marker = 'none';
+            child.marker_size = 6;
+            child.marker_face_color = 'none';
+            child.marker_edge_color = 'auto';
+
+            children{end+1} = child;
+
+            % Violation markers (if ShowViolations is enabled)
+            if isfield(T, 'hMarkers') && ~isempty(T.hMarkers) && isvalid(T.hMarkers)
+                vm = struct();
+                vm.type = 'scatter';
+                vm.xdata = get(T.hMarkers, 'XData');
+                vm.ydata = get(T.hMarkers, 'YData');
+                vm.marker = 'o';
+                vm.size_data = 36;
+                if isfield(T, 'Color') && ~isempty(T.Color)
+                    vm.marker_face_color = T.Color;
+                    vm.marker_edge_color = T.Color;
+                else
+                    vm.marker_face_color = [1 0 0];
+                    vm.marker_edge_color = [1 0 0];
+                end
+                vm.display_name = sprintf('%s Violations', child.display_name);
+
+                if ~isempty(vm.xdata)
+                    children{end+1} = vm;
+                end
+            end
+        end
     end
 end
 
