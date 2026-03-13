@@ -118,6 +118,16 @@ def map_font(font_name: str) -> str:
 # Trace converters
 # ---------------------------------------------------------------------------
 
+# Use WebGL (scattergl) for large datasets — much faster rendering
+_WEBGL_THRESHOLD = 10000
+
+
+def _scatter_type(child: dict) -> str:
+    """Return 'scattergl' for large datasets, 'scatter' otherwise."""
+    n = len(child.get("xdata", []))
+    return "scattergl" if n > _WEBGL_THRESHOLD else "scatter"
+
+
 def convert_line(child: dict, axis_suffix: str) -> dict:
     """Convert a MATLAB line child to a Plotly scatter trace."""
     marker_symbol = MARKER_MAP.get(child.get("marker", "none"))
@@ -125,7 +135,7 @@ def convert_line(child: dict, axis_suffix: str) -> dict:
     line_color = resolve_color(child.get("color"), None)
 
     trace: dict[str, Any] = {
-        "type": "scatter",
+        "type": _scatter_type(child),
         "mode": mode,
         "x": child.get("xdata", []),
         "y": child.get("ydata", []),
@@ -195,7 +205,7 @@ def convert_scatter_trace(child: dict, axis_suffix: str) -> dict:
     plotly_size = round(math.sqrt(size_data))
 
     trace: dict[str, Any] = {
-        "type": "scatter",
+        "type": _scatter_type(child),
         "mode": "markers",
         "x": child.get("xdata", []),
         "y": child.get("ydata", []),

@@ -273,24 +273,8 @@ function children = mcp_extract_fastplot(fp, ax)
 
             % Get FULL resolution data from FastPlot's raw storage
             if isfield(L, 'X') && isfield(L, 'Y')
-                xraw = L.X;
-                yraw = L.Y;
-
-                % Cap at 50,000 points for JSON size — downsample if larger
-                maxpts = 50000;
-                if length(xraw) > maxpts
-                    step = ceil(length(xraw) / maxpts);
-                    idx = 1:step:length(xraw);
-                    % Always include last point
-                    if idx(end) ~= length(xraw)
-                        idx = [idx, length(xraw)];
-                    end
-                    child.xdata = xraw(idx);
-                    child.ydata = yraw(idx);
-                else
-                    child.xdata = xraw;
-                    child.ydata = yraw;
-                end
+                child.xdata = L.X;
+                child.ydata = L.Y;
             else
                 % Fallback to rendered line handle
                 if isfield(L, 'hLine') && ~isempty(L.hLine) && isvalid(L.hLine)
