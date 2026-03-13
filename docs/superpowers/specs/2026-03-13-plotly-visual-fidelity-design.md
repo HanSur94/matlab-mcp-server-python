@@ -1,7 +1,7 @@
 # Plotly Visual Fidelity Conversion Layer
 
 **Date:** 2026-03-13
-**Status:** Draft
+**Status:** Draft (rev 2 — addressing spec review)
 
 ## Problem
 
@@ -48,6 +48,7 @@ Auto-detects three layout types:
 
 ```json
 {
+  "schema_version": 1,
   "layout_type": "subplot | tiledlayout | single",
   "background_color": [0.94, 0.94, 0.94],
   "grid": {
@@ -82,7 +83,7 @@ Auto-detects three layout types:
       "color": [1, 1, 1],
       "grid_color": [0.15, 0.15, 0.15],
       "grid_alpha": 0.15,
-      "grid_style": "-",
+      "grid_line_style": "-",
       "legend": {
         "visible": true,
         "entries": ["sin(x)", "cos(x)"],
@@ -116,7 +117,7 @@ Auto-detects three layout types:
           "xdata": [1, 2, 3],
           "ydata": [4, 5, 6],
           "marker": "o",
-          "marker_size": 36,
+          "size_data": 36,
           "marker_face_color": [0.85, 0.33, 0.1],
           "marker_edge_color": [0, 0, 0],
           "display_name": "Points"
@@ -162,7 +163,7 @@ Auto-detects three layout types:
 |---|---|
 | **line** | xdata, ydata, color, line_style, line_width, display_name, marker, marker_size, marker_face_color, marker_edge_color |
 | **bar** | xdata, ydata, face_color, edge_color, bar_width, display_name |
-| **scatter** | xdata, ydata, marker, marker_size, marker_face_color, marker_edge_color, display_name |
+| **scatter** | xdata, ydata, marker, size_data (MATLAB `SizeData`, area in pt^2), marker_face_color, marker_edge_color, display_name |
 | **surface** | xdata, ydata, zdata, colormap |
 | **image** | cdata, colormap |
 | **histogram** | data, face_color, edge_color, num_bins, bin_edges |
@@ -170,7 +171,9 @@ Auto-detects three layout types:
 
 ### Axes Properties
 
-title, xlabel, ylabel, xlim, ylim, xgrid, ygrid, xdir, ydir, xtick, ytick, xticklabels, yticklabels, tick_font, color (background), grid_color, grid_alpha, grid_style, legend, position, grid_index.
+title, xlabel, ylabel, xlim, ylim, xgrid, ygrid, xdir, ydir, xtick, ytick, xticklabels, yticklabels, tick_font, color (background), grid_color, grid_alpha, grid_line_style (MATLAB `GridLineStyle`), legend, position, grid_index.
+
+**Note on size properties:** MATLAB `scatter()` objects use `SizeData` (area in points-squared), while `line` objects use `MarkerSize` (diameter in points). The extractor must use the correct property for each type. The Python mapper converts `size_data` to Plotly marker size via `sqrt(size_data)` to approximate diameter.
 
 ## Python Style Mapper (`plotly_style_mapper.py`)
 
@@ -204,24 +207,37 @@ MARKER_MAP = {
 }
 
 LEGEND_LOCATION_MAP = {
-    "northeast": {"x": 1, "y": 1, "xanchor": "right"},
-    "northwest": {"x": 0, "y": 1, "xanchor": "left"},
-    "southeast": {"x": 1, "y": 0, "xanchor": "right"},
-    "southwest": {"x": 0, "y": 0, "xanchor": "left"},
+    "northeast": {"x": 1, "y": 1, "xanchor": "right", "yanchor": "top"},
+    "northwest": {"x": 0, "y": 1, "xanchor": "left", "yanchor": "top"},
+    "southeast": {"x": 1, "y": 0, "xanchor": "right", "yanchor": "bottom"},
+    "southwest": {"x": 0, "y": 0, "xanchor": "left", "yanchor": "bottom"},
+    "north": {"x": 0.5, "y": 1, "xanchor": "center", "yanchor": "top"},
+    "south": {"x": 0.5, "y": 0, "xanchor": "center", "yanchor": "bottom"},
+    "east": {"x": 1, "y": 0.5, "xanchor": "right", "yanchor": "middle"},
+    "west": {"x": 0, "y": 0.5, "xanchor": "left", "yanchor": "middle"},
     "best": {},
+    "bestoutside": {"x": 1.05, "y": 1, "xanchor": "left", "yanchor": "top"},
+    "northoutside": {"x": 0.5, "y": 1.05, "xanchor": "center", "yanchor": "bottom"},
+    "southoutside": {"x": 0.5, "y": -0.1, "xanchor": "center", "yanchor": "top"},
+    "eastoutside": {"x": 1.05, "y": 0.5, "xanchor": "left", "yanchor": "middle"},
+    "westoutside": {"x": -0.15, "y": 0.5, "xanchor": "right", "yanchor": "middle"},
 }
+# Fallback: unmapped locations default to {} (Plotly auto-placement)
 
 COLORMAP_MAP = {
-    "parula": "Viridis",
+    "parula": "Viridis",   # approximation — parula is perceptually uniform like Viridis
     "jet": "Jet",
     "hsv": "HSV",
     "hot": "Hot",
-    "cool": "Bluered",
+    "cool": "Bluered",     # approximation — cool is cyan-to-magenta, Bluered is blue-to-red
     "gray": "Greys",
-    "bone": "Greys",
+    "bone": "Greys",       # approximation — bone has a blue tint that Greys lacks
     "copper": "Copper",
     "turbo": "Turbo",
 }
+# Note: some mappings are approximations. For exact fidelity, a future
+# enhancement could extract the full Nx3 colormap matrix from MATLAB
+# and emit a custom Plotly colorscale.
 
 GRID_STYLE_MAP = {
     "-": "solid",
@@ -248,7 +264,7 @@ GRID_STYLE_MAP = {
 | `convert_layout(matlab_fig)` | Full extracted JSON | Plotly layout dict |
 | `compute_domains(grid, axes_list)` | Grid info + axes | Per-axis domain pairs |
 | `rgb_to_css(rgb_array)` | `[0, 0.447, 0.741]` | `"rgb(0, 114, 189)"` |
-| `resolve_color(value, fallback)` | `"auto"` / `"none"` / RGB | CSS color string or None |
+| `resolve_color(value, fallback)` | `"auto"` / `"none"` / RGB | CSS color string or None. `"auto"` returns `fallback` (caller passes the contextually correct color, e.g. `face_color` for bar edges). `"none"` returns `"rgba(0,0,0,0)"`. |
 
 ### Subplot Domain Computation
 
@@ -266,8 +282,9 @@ def compute_domains(grid, axes_list):
         row_start = (gi["row"] - 1) / rows
         row_end = (gi["row"] - 1 + gi["rowspan"]) / rows
 
-        x_domain = [col_start + gap_x/2, col_end - gap_x/2]
-        y_domain = [1 - row_end + gap_y/2, 1 - row_start - gap_y/2]
+        x_domain = [max(0, col_start + gap_x/2), min(1, col_end - gap_x/2)]
+        y_domain = [max(0, 1 - row_end + gap_y/2), min(1, 1 - row_start - gap_y/2)]
+        # Clamp to [0, 1] to handle spanning tiles that exceed grid bounds
         # Assign to xaxis<n>, yaxis<n>
 ```
 
@@ -280,7 +297,15 @@ def map_font(font_name):
     return f"{font_name}, Arial, sans-serif"
 ```
 
-## Integration with Executor (`executor.py`)
+## Integration with Executor (`executor.py`) and Tool Layer (`tools/core.py`)
+
+### Wiring `temp_dir`
+
+`execute_code_impl` in `tools/core.py` must pass `temp_dir` to `executor.execute()`. The executor uses `config.execution.temp_dir` (resolved to an absolute path) as the directory for figure JSON files. This closes the gap where the current code calls `executor.execute(session_id=session_id, code=code)` without a `temp_dir` argument.
+
+### `plotly_convert.py` Role
+
+`plotly_convert.py` remains a **generic JSON file loader** — it reads any JSON dict from disk. It does NOT do Plotly-specific transformations. The function `load_plotly_json` is kept as-is (name unchanged for backward compatibility). All Plotly-specific mapping is in `plotly_style_mapper.py`. The loader validates `schema_version` and rejects unknown versions.
 
 ### Figure Detection & Extraction
 
@@ -337,7 +362,7 @@ for fig_file in fig_files:
         "yaxis2": {"domain": [0.0, 1.0], "anchor": "x2"},
         "plot_bgcolor": "rgb(255,255,255)",
         "paper_bgcolor": "rgb(240,240,240)",
-        "legend": {"x": 1, "y": 1, "xanchor": "right"},
+        "legend": {"x": 1, "y": 1, "xanchor": "right", "yanchor": "top"},
         "showlegend": true
       }
     }
@@ -350,13 +375,15 @@ for fig_file in fig_files:
 | FastPlot Element | MATLAB Object | Plotly Mapping |
 |---|---|---|
 | Bands/shadings | `patch` | `scatter` trace with `fill: "toself"`, `fillcolor` with alpha |
-| Threshold lines | `line` (constant value) | `layout.shapes[]` with `type: "line"` |
+| Threshold lines | `line` (constant value) | Converted as regular `scatter` traces (mode=`lines`). Post-render, threshold lines are indistinguishable from data lines in MATLAB's handle graphics — no reliable detection heuristic exists. They will look correct visually. |
 | Violation markers | `scatter` | `scatter` trace with `mode: "markers"` |
 | Tiled dashboard | Multiple axes with grid positions | Plotly subplots via `domain` |
 | Theme colors | Applied to axes/line properties | Captured as raw property values |
 | Linked zoom/pan | Runtime XLim listener | Out of scope (runtime behavior) |
 
 FastPlot figures are standard MATLAB figures after `render()`, so the extractor captures theme-applied properties automatically.
+
+**Note on FastPlotFigure:** FastPlotFigure does NOT use MATLAB's `tiledlayout`. It computes axes positions manually via `computeTilePosition()`. These figures will always be detected as `subplot` layout type, with the grid inferred from the axes `Position` values. The position-clustering algorithm must handle FastPlot's uniform grids with configurable gaps and spans.
 
 ## Testing
 
@@ -378,11 +405,21 @@ FastPlot figures are standard MATLAB figures after `render()`, so the extractor 
 
 ### Integration Tests (`test_integration_figures.py`)
 
+These tests require a live MATLAB engine and are marked with `@pytest.mark.matlab` — excluded from standard CI runs.
+
 - Execute styled MATLAB plot -> verify Plotly JSON has correct styles
 - Each plot type: line, bar, scatter, surface, heatmap, histogram
 - Patch/band extraction
 - Multi-subplot figure
 - Figure with legend and custom fonts
+
+### Fixture-Based Tests (`test_plotly_conversion_fixtures.py`)
+
+Pre-recorded MATLAB JSON fixtures in `tests/fixtures/matlab_figures/` enable CI testing without MATLAB:
+
+- One fixture per plot type with known expected Plotly output
+- Subplot/tiled layout fixtures
+- Tests verify the full `load_plotly_json` -> `convert_figure` pipeline against expected output
 
 ## Scope
 
@@ -410,8 +447,12 @@ FastPlot figures are standard MATLAB figures after `render()`, so the extractor 
 |---|---|
 | `src/matlab_mcp/matlab_helpers/mcp_fig2plotly.m` | Rewrite -> rename to `mcp_extract_props.m` |
 | `src/matlab_mcp/output/plotly_style_mapper.py` | New |
-| `src/matlab_mcp/output/plotly_convert.py` | Modify (add entry point) |
-| `src/matlab_mcp/jobs/executor.py` | Modify (wire up pipeline) |
+| `src/matlab_mcp/output/plotly_convert.py` | Modify (add schema_version validation) |
+| `src/matlab_mcp/jobs/executor.py` | Modify (wire up figure extraction + conversion pipeline) |
+| `src/matlab_mcp/tools/core.py` | Modify (pass `temp_dir` to executor) |
+| `tests/test_output.py` | Modify (update for new JSON schema) |
 | `tests/test_plotly_style_mapper.py` | New |
 | `tests/test_subplot_layout.py` | New |
-| `tests/test_integration_figures.py` | New |
+| `tests/test_plotly_conversion_fixtures.py` | New (fixture-based CI tests) |
+| `tests/test_integration_figures.py` | New (requires MATLAB, `@pytest.mark.matlab`) |
+| `tests/fixtures/matlab_figures/` | New (pre-recorded MATLAB JSON fixtures) |
