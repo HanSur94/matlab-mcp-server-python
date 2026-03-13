@@ -362,25 +362,44 @@ function children = mcp_extract_fastplot(fp, ax)
 
             children{end+1} = child;
 
-            % Violation markers (if ShowViolations is enabled)
-            if isfield(T, 'hMarkers') && ~isempty(T.hMarkers) && isvalid(T.hMarkers)
-                vm = struct();
-                vm.type = 'scatter';
-                vm.xdata = get(T.hMarkers, 'XData');
-                vm.ydata = get(T.hMarkers, 'YData');
-                vm.marker = 'o';
-                vm.size_data = 36;
-                if isfield(T, 'Color') && ~isempty(T.Color)
-                    vm.marker_face_color = T.Color;
-                    vm.marker_edge_color = T.Color;
-                else
-                    vm.marker_face_color = [1 0 0];
-                    vm.marker_edge_color = [1 0 0];
-                end
-                vm.display_name = sprintf('%s Violations', child.display_name);
+            % Violation markers — compute from RAW line data, not hMarkers
+            % (hMarkers only has pixel-culled violations for current zoom)
+            show_viol = isfield(T, 'ShowViolations') && T.ShowViolations;
+            if show_viol && isprop(fp, 'Lines') && length(fp.Lines) >= 1
+                % Use first line's raw data to find violations
+                L1 = fp.Lines(1);
+                if isfield(L1, 'X') && isfield(L1, 'Y')
+                    xraw = L1.X;
+                    yraw = L1.Y;
 
-                if ~isempty(vm.xdata)
-                    children{end+1} = vm;
+                    % Determine direction: upper threshold -> y > value
+                    %                      lower threshold -> y < value
+                    if T.Value >= 0
+                        mask = yraw > T.Value;
+                    else
+                        mask = yraw < T.Value;
+                    end
+
+                    vx = xraw(mask);
+                    vy = yraw(mask);
+
+                    if ~isempty(vx)
+                        vm = struct();
+                        vm.type = 'scatter';
+                        vm.xdata = vx;
+                        vm.ydata = vy;
+                        vm.marker = 'o';
+                        vm.size_data = 25;
+                        if isfield(T, 'Color') && ~isempty(T.Color)
+                            vm.marker_face_color = T.Color;
+                            vm.marker_edge_color = T.Color;
+                        else
+                            vm.marker_face_color = [1 0 0];
+                            vm.marker_edge_color = [1 0 0];
+                        end
+                        vm.display_name = sprintf('%s Violations (%d)', child.display_name, length(vx));
+                        children{end+1} = vm;
+                    end
                 end
             end
         end
