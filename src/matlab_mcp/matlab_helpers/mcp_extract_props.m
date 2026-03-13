@@ -65,7 +65,10 @@ function ax_data = mcp_extract_axes_data(ax, layout_type, tl)
     if strcmp(layout_type, 'tiledlayout') && ~isempty(tl)
         try
             tile_info = ax.Layout;
-            ax_data.grid_index = struct('row', tile_info.Tile(1), 'col', tile_info.Tile(2), ...
+            % Tile is a scalar linear index; convert to (row, col)
+            tile_num = tile_info.Tile;
+            [tile_row, tile_col] = ind2sub(tl.GridSize, tile_num);
+            ax_data.grid_index = struct('row', tile_row, 'col', tile_col, ...
                 'rowspan', tile_info.TileSpan(1), 'colspan', tile_info.TileSpan(2));
         catch
             ax_data.grid_index = struct('row', 1, 'col', 1, 'rowspan', 1, 'colspan', 1);

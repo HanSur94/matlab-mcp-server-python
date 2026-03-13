@@ -310,6 +310,8 @@ def convert_patch(child: dict, axis_suffix: str) -> dict:
     name = child.get("display_name", "")
     if name:
         trace["name"] = name
+    else:
+        trace["showlegend"] = False
 
     return trace
 

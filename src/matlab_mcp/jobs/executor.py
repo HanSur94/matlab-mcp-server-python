@@ -277,11 +277,12 @@ class JobExecutor:
                 from matlab_mcp.output.plotly_style_mapper import convert_figure
 
                 # Run MATLAB-side figure extraction
+                escaped_dir = str(temp_dir).replace("\\", "\\\\").replace("'", "\\'")
                 extract_code = (
                     f"__mcp_figs = findobj(0, 'Type', 'figure');\n"
                     f"for __mcp_i = 1:length(__mcp_figs)\n"
                     f"    mcp_extract_props(__mcp_figs(__mcp_i), "
-                    f"fullfile('{temp_dir}', sprintf('{job.job_id}_fig%d.json', __mcp_i)));\n"
+                    f"fullfile('{escaped_dir}', sprintf('{job.job_id}_fig%d.json', __mcp_i)));\n"
                     f"    close(__mcp_figs(__mcp_i));\n"
                     f"end\n"
                     f"clear __mcp_figs __mcp_i;\n"
