@@ -277,20 +277,23 @@ class JobExecutor:
                 from matlab_mcp.output.plotly_style_mapper import convert_figure
 
                 # Run MATLAB-side figure extraction
+                # Note: MATLAB eval() rejects identifiers starting with __
                 escaped_dir = str(temp_dir).replace("\\", "\\\\").replace("'", "\\'")
                 extract_code = (
-                    f"__mcp_figs = findobj(0, 'Type', 'figure');\n"
-                    f"for __mcp_i = 1:length(__mcp_figs)\n"
-                    f"    mcp_extract_props(__mcp_figs(__mcp_i), "
-                    f"fullfile('{escaped_dir}', sprintf('{job.job_id}_fig%d.json', __mcp_i)));\n"
-                    f"    close(__mcp_figs(__mcp_i));\n"
-                    f"end\n"
-                    f"clear __mcp_figs __mcp_i;\n"
+                    f"mcpFigs_ = findobj(0, 'Type', 'figure'); "
+                    f"for mcpIdx_ = 1:length(mcpFigs_), "
+                    f"mcp_extract_props(mcpFigs_(mcpIdx_), "
+                    f"fullfile('{escaped_dir}', sprintf('{job.job_id}_fig%d.json', mcpIdx_))); "
+                    f"close(mcpFigs_(mcpIdx_)); "
+                    f"end; "
+                    f"clear mcpFigs_ mcpIdx_;"
                 )
+                logger.debug("Figure extraction code: %r", extract_code)
                 try:
                     engine.execute(extract_code, background=False)
                 except Exception as exc:
                     logger.warning("Figure extraction failed: %s", exc)
+                    logger.debug("Extraction code was: %r", extract_code)
 
                 # Load and convert each figure JSON
                 fig_pattern = os.path.join(temp_dir, f"{job.job_id}_fig*.json")
