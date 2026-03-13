@@ -24,6 +24,7 @@ async def execute_code_impl(
     session_id: str,
     executor: Any,
     security: Any,
+    temp_dir: Optional[str] = None,
 ) -> dict:
     """Execute MATLAB code with security check.
 
@@ -59,7 +60,7 @@ async def execute_code_impl(
         }
 
     # Delegate to executor
-    return await executor.execute(session_id=session_id, code=code)
+    return await executor.execute(session_id=session_id, code=code, temp_dir=temp_dir)
 
 
 async def check_code_impl(

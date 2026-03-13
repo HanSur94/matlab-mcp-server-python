@@ -370,6 +370,7 @@ def create_server(config: AppConfig) -> FastMCP:
             session_id=session_id,
             executor=state.executor,
             security=state.security,
+            temp_dir=temp_dir,
         )
         logger.info("Tool result: execute_code  status=%s  job=%s",
                      result.get("status"), result.get("job_id", "")[:8])
