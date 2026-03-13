@@ -222,7 +222,10 @@ LEGEND_LOCATION_MAP = {
     "eastoutside": {"x": 1.05, "y": 0.5, "xanchor": "left", "yanchor": "middle"},
     "westoutside": {"x": -0.15, "y": 0.5, "xanchor": "right", "yanchor": "middle"},
 }
-# Fallback: unmapped locations default to {} (Plotly auto-placement)
+# Fallback: unmapped locations default to {} (Plotly auto-placement).
+# Note: MATLAB's "best" places the legend in the least cluttered corner.
+# Plotly has no equivalent algorithm — "best" maps to Plotly's default
+# (top-right inside plot area).
 
 COLORMAP_MAP = {
     "parula": "Viridis",   # approximation — parula is perceptually uniform like Viridis
@@ -270,8 +273,12 @@ GRID_STYLE_MAP = {
 
 For each axes, domains are computed from grid position:
 
+For `layout_type == "single"`, domain computation is skipped — no `domain` keys are emitted, and Plotly uses its full-area default.
+
 ```python
 def compute_domains(grid, axes_list):
+    if grid is None:  # single-axes case
+        return [{"x": [0, 1], "y": [0, 1]}]
     rows, cols = grid["rows"], grid["cols"]
     gap_x, gap_y = 0.04, 0.06  # inter-subplot padding
 
@@ -294,18 +301,23 @@ MATLAB font names map directly with a web-safe fallback stack:
 
 ```python
 def map_font(font_name):
+    # Quote names containing spaces (e.g. "Times New Roman" -> '"Times New Roman"')
+    if " " in font_name:
+        font_name = f'"{font_name}"'
     return f"{font_name}, Arial, sans-serif"
 ```
 
 ## Integration with Executor (`executor.py`) and Tool Layer (`tools/core.py`)
 
-### Wiring `temp_dir`
+### Where the Pipeline Lives: `executor._build_result`
 
-`execute_code_impl` in `tools/core.py` must pass `temp_dir` to `executor.execute()`. The executor uses `config.execution.temp_dir` (resolved to an absolute path) as the directory for figure JSON files. This closes the gap where the current code calls `executor.execute(session_id=session_id, code=code)` without a `temp_dir` argument.
+The figure extraction pipeline belongs in `executor._build_result()`, which already has a placeholder (`figures: list = []` with a `plotly_conversion` config guard). The executor already receives `temp_dir` via `executor.execute()` — no changes to `tools/core.py` or `execute_code_impl` are needed.
 
 ### `plotly_convert.py` Role
 
-`plotly_convert.py` remains a **generic JSON file loader** — it reads any JSON dict from disk. It does NOT do Plotly-specific transformations. The function `load_plotly_json` is kept as-is (name unchanged for backward compatibility). All Plotly-specific mapping is in `plotly_style_mapper.py`. The loader validates `schema_version` and rejects unknown versions.
+`plotly_convert.py` remains a **generic JSON file loader** — it reads any JSON dict from disk. It does NOT do Plotly-specific transformations. The function `load_plotly_json` is kept as-is (name unchanged for backward compatibility, docstring updated to reference `mcp_extract_props.m`). All Plotly-specific mapping is in `plotly_style_mapper.py`.
+
+The loader validates `schema_version`: if `schema_version` is absent or greater than `SUPPORTED_SCHEMA_VERSION = 1`, `load_plotly_json` returns `None` and logs a warning (consistent with existing error handling pattern).
 
 ### Figure Detection & Extraction
 
@@ -447,9 +459,8 @@ Pre-recorded MATLAB JSON fixtures in `tests/fixtures/matlab_figures/` enable CI 
 |---|---|
 | `src/matlab_mcp/matlab_helpers/mcp_fig2plotly.m` | Rewrite -> rename to `mcp_extract_props.m` |
 | `src/matlab_mcp/output/plotly_style_mapper.py` | New |
-| `src/matlab_mcp/output/plotly_convert.py` | Modify (add schema_version validation) |
-| `src/matlab_mcp/jobs/executor.py` | Modify (wire up figure extraction + conversion pipeline) |
-| `src/matlab_mcp/tools/core.py` | Modify (pass `temp_dir` to executor) |
+| `src/matlab_mcp/output/plotly_convert.py` | Modify (add schema_version validation, update docstring) |
+| `src/matlab_mcp/jobs/executor.py` | Modify (implement figure extraction + conversion in `_build_result`) |
 | `tests/test_output.py` | Modify (update for new JSON schema) |
 | `tests/test_plotly_style_mapper.py` | New |
 | `tests/test_subplot_layout.py` | New |
