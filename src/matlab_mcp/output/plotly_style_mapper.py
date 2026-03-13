@@ -312,3 +312,224 @@ def convert_patch(child: dict, axis_suffix: str) -> dict:
         trace["name"] = name
 
     return trace
+
+
+# ---------------------------------------------------------------------------
+# Child type dispatcher
+# ---------------------------------------------------------------------------
+
+_CHILD_CONVERTERS: dict[str, Any] = {
+    "line": convert_line,
+    "bar": convert_bar,
+    "scatter": convert_scatter_trace,
+    "surface": convert_surface,
+    "image": convert_heatmap,
+    "histogram": convert_histogram_trace,
+    "patch": convert_patch,
+}
+
+
+# ---------------------------------------------------------------------------
+# Layout
+# ---------------------------------------------------------------------------
+
+def compute_domains(
+    grid: Optional[dict], axes_list: list[dict]
+) -> list[dict[str, list[float]]]:
+    """Compute Plotly xaxis/yaxis domain pairs from grid positions.
+
+    Returns a list parallel to *axes_list*.
+    """
+    if grid is None:
+        return [{"x": [0, 1], "y": [0, 1]}]
+
+    rows = grid["rows"]
+    cols = grid["cols"]
+    gap_x, gap_y = 0.04, 0.06
+
+    domains: list[dict[str, list[float]]] = []
+    for ax in axes_list:
+        gi = ax["grid_index"]
+        col_start = (gi["col"] - 1) / cols
+        col_end = (gi["col"] - 1 + gi["colspan"]) / cols
+        row_start = (gi["row"] - 1) / rows
+        row_end = (gi["row"] - 1 + gi["rowspan"]) / rows
+
+        x_domain = [max(0, col_start + gap_x / 2), min(1, col_end - gap_x / 2)]
+        y_domain = [max(0, 1 - row_end + gap_y / 2), min(1, 1 - row_start - gap_y / 2)]
+        domains.append({"x": x_domain, "y": y_domain})
+
+    return domains
+
+
+def _axis_suffix(index: int) -> str:
+    """Return '' for index 0, '2' for 1, '3' for 2, etc."""
+    return "" if index == 0 else str(index + 1)
+
+
+def _build_axis_layout(axes_data: dict, suffix: str) -> dict:
+    """Build xaxis/yaxis layout dicts from MATLAB axes properties."""
+    grid_color_rgb = axes_data.get("grid_color", [0.15, 0.15, 0.15])
+    grid_alpha = axes_data.get("grid_alpha", 0.15)
+    r, g, b = [round(c * 255) for c in grid_color_rgb]
+    grid_color = f"rgba({r},{g},{b},{grid_alpha})"
+    grid_dash = GRID_STYLE_MAP.get(axes_data.get("grid_line_style", "-"), "solid")
+
+    tick_font = axes_data.get("tick_font", {})
+    tick_font_dict: dict[str, Any] = {}
+    if tick_font.get("font_name"):
+        tick_font_dict["family"] = map_font(tick_font["font_name"])
+    if tick_font.get("font_size"):
+        tick_font_dict["size"] = tick_font["font_size"]
+
+    def _label_dict(label_data: Optional[dict]) -> dict:
+        if not label_data or not label_data.get("text"):
+            return {}
+        result: dict[str, Any] = {"text": label_data["text"]}
+        font: dict[str, Any] = {}
+        if label_data.get("font_name"):
+            font["family"] = map_font(label_data["font_name"])
+        if label_data.get("font_size"):
+            font["size"] = label_data["font_size"]
+        if font:
+            result["font"] = font
+        return result
+
+    x_key = f"xaxis{suffix}"
+    y_key = f"yaxis{suffix}"
+
+    xlim = axes_data.get("xlim")
+    ylim = axes_data.get("ylim")
+
+    layout: dict[str, Any] = {}
+
+    layout[x_key] = {
+        "showgrid": axes_data.get("xgrid", False),
+        "gridcolor": grid_color,
+        "griddash": grid_dash,
+    }
+    x_title = _label_dict(axes_data.get("xlabel"))
+    if x_title:
+        layout[x_key]["title"] = x_title
+    if xlim:
+        layout[x_key]["range"] = xlim
+    xtick = axes_data.get("xtick")
+    if xtick:
+        layout[x_key]["tickvals"] = xtick
+    xticklabels = axes_data.get("xticklabels")
+    if xticklabels:
+        layout[x_key]["ticktext"] = xticklabels
+    if tick_font_dict:
+        layout[x_key]["tickfont"] = tick_font_dict
+    if axes_data.get("xdir") == "reverse":
+        layout[x_key]["autorange"] = "reversed"
+
+    layout[y_key] = {
+        "showgrid": axes_data.get("ygrid", False),
+        "gridcolor": grid_color,
+        "griddash": grid_dash,
+    }
+    y_title = _label_dict(axes_data.get("ylabel"))
+    if y_title:
+        layout[y_key]["title"] = y_title
+    if ylim:
+        layout[y_key]["range"] = ylim
+    ytick = axes_data.get("ytick")
+    if ytick:
+        layout[y_key]["tickvals"] = ytick
+    yticklabels = axes_data.get("yticklabels")
+    if yticklabels:
+        layout[y_key]["ticktext"] = yticklabels
+    if tick_font_dict:
+        layout[y_key]["tickfont"] = tick_font_dict
+    if axes_data.get("ydir") == "reverse":
+        layout[y_key]["autorange"] = "reversed"
+
+    # Link y-axis to its x-axis for multi-axis subplots
+    if suffix:
+        layout[y_key]["anchor"] = f"x{suffix}"
+
+    return layout
+
+
+def convert_axes(axes_data: dict, axis_index: int) -> tuple[list[dict], dict]:
+    """Convert a single MATLAB axes dict to Plotly traces + layout fragment."""
+    suffix = _axis_suffix(axis_index)
+    traces: list[dict] = []
+
+    for child in axes_data.get("children", []):
+        child_type = child.get("type", "")
+        converter = _CHILD_CONVERTERS.get(child_type)
+        if converter:
+            traces.append(converter(child, suffix))
+        else:
+            logger.warning("Unknown child type %r — skipping", child_type)
+
+    layout_frag = _build_axis_layout(axes_data, suffix)
+
+    return traces, layout_frag
+
+
+def convert_figure(matlab_fig: dict) -> dict:
+    """Convert a full MATLAB figure property dict to a Plotly figure dict."""
+    axes_list = matlab_fig.get("axes", [])
+    layout_type = matlab_fig.get("layout_type", "single")
+    grid = matlab_fig.get("grid") if layout_type != "single" else None
+
+    all_traces: list[dict] = []
+    merged_layout: dict[str, Any] = {}
+
+    # Background colors
+    bg = matlab_fig.get("background_color", [0.94, 0.94, 0.94])
+    merged_layout["paper_bgcolor"] = rgb_to_css(bg)
+
+    # Compute subplot domains
+    domains = compute_domains(grid, axes_list)
+
+    show_legend = False
+
+    for i, axes_data in enumerate(axes_list):
+        traces, layout_frag = convert_axes(axes_data, i)
+        all_traces.extend(traces)
+        merged_layout.update(layout_frag)
+
+        suffix = _axis_suffix(i)
+        x_key = f"xaxis{suffix}"
+        y_key = f"yaxis{suffix}"
+
+        # Apply domains for multi-axes
+        if len(axes_list) > 1:
+            if x_key in merged_layout:
+                merged_layout[x_key]["domain"] = domains[i]["x"]
+            if y_key in merged_layout:
+                merged_layout[y_key]["domain"] = domains[i]["y"]
+
+        # Axes background
+        axes_bg = axes_data.get("color", [1, 1, 1])
+        if i == 0:
+            merged_layout["plot_bgcolor"] = rgb_to_css(axes_bg)
+
+        # Title from first axes
+        title_data = axes_data.get("title", {})
+        if i == 0 and title_data.get("text"):
+            title_dict: dict[str, Any] = {"text": title_data["text"]}
+            font: dict[str, Any] = {}
+            if title_data.get("font_name"):
+                font["family"] = map_font(title_data["font_name"])
+            if title_data.get("font_size"):
+                font["size"] = title_data["font_size"]
+            if font:
+                title_dict["font"] = font
+            merged_layout["title"] = title_dict
+
+        # Legend
+        legend_data = axes_data.get("legend", {})
+        if legend_data.get("visible"):
+            show_legend = True
+            location = legend_data.get("location", "best")
+            legend_pos = LEGEND_LOCATION_MAP.get(location, {})
+            merged_layout["legend"] = legend_pos
+
+    merged_layout["showlegend"] = show_legend
+
+    return {"data": all_traces, "layout": merged_layout}

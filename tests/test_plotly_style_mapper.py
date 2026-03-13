@@ -254,3 +254,135 @@ class TestConvertPatch:
         assert "rgba" in result["fillcolor"]
         assert result["name"] == "Band"
         assert result["line"]["color"] == "rgba(0,0,0,0)"
+
+
+class TestConvertAxes:
+    def test_single_axes_with_line(self):
+        from matlab_mcp.output.plotly_style_mapper import convert_axes
+
+        axes_data = {
+            "grid_index": {"row": 1, "col": 1, "rowspan": 1, "colspan": 1},
+            "position": [0.13, 0.11, 0.775, 0.815],
+            "title": {"text": "Test", "font_name": "Helvetica", "font_size": 14, "font_weight": "bold"},
+            "xlabel": {"text": "X", "font_name": "Helvetica", "font_size": 12},
+            "ylabel": {"text": "Y", "font_name": "Helvetica", "font_size": 12},
+            "xlim": [0, 10], "ylim": [-1, 1],
+            "xgrid": True, "ygrid": True,
+            "xdir": "normal", "ydir": "normal",
+            "xtick": [0, 5, 10], "ytick": [-1, 0, 1],
+            "xticklabels": None, "yticklabels": None,
+            "tick_font": {"font_name": "Helvetica", "font_size": 10},
+            "color": [1, 1, 1],
+            "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+            "legend": {"visible": True, "entries": ["sin(x)"], "location": "northeast"},
+            "children": [
+                {"type": "line", "xdata": [0, 5, 10], "ydata": [0, 1, 0],
+                 "color": [0, 0.447, 0.741], "line_style": "-", "line_width": 2,
+                 "display_name": "sin(x)", "marker": "none", "marker_size": 6,
+                 "marker_face_color": "none", "marker_edge_color": "auto"},
+            ],
+        }
+        traces, layout_frag = convert_axes(axes_data, 0)
+
+        assert len(traces) == 1
+        assert traces[0]["type"] == "scatter"
+        assert "xaxis" in layout_frag
+        assert layout_frag["xaxis"]["title"]["text"] == "X"
+        assert layout_frag["xaxis"]["range"] == [0, 10]
+        assert layout_frag["xaxis"]["showgrid"] is True
+        assert layout_frag["yaxis"]["range"] == [-1, 1]
+
+    def test_unknown_child_skipped(self):
+        from matlab_mcp.output.plotly_style_mapper import convert_axes
+        axes_data = {
+            "xlabel": {}, "ylabel": {},
+            "xgrid": False, "ygrid": False,
+            "xdir": "normal", "ydir": "normal",
+            "tick_font": {},
+            "color": [1,1,1], "grid_color": [0.15,0.15,0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+            "legend": {"visible": False},
+            "children": [{"type": "unknown_widget", "data": [1,2,3]}],
+        }
+        traces, _ = convert_axes(axes_data, 0)
+        assert len(traces) == 0
+
+
+class TestConvertFigure:
+    def test_single_line_figure(self):
+        from matlab_mcp.output.plotly_style_mapper import convert_figure
+
+        matlab_fig = {
+            "schema_version": 1,
+            "layout_type": "single",
+            "background_color": [0.94, 0.94, 0.94],
+            "axes": [{
+                "grid_index": {"row": 1, "col": 1, "rowspan": 1, "colspan": 1},
+                "position": [0.13, 0.11, 0.775, 0.815],
+                "title": {"text": "Test", "font_name": "Helvetica", "font_size": 14, "font_weight": "bold"},
+                "xlabel": {"text": "X", "font_name": "Helvetica", "font_size": 12},
+                "ylabel": {"text": "Y", "font_name": "Helvetica", "font_size": 12},
+                "xlim": [0, 10], "ylim": [-1, 1],
+                "xgrid": True, "ygrid": True,
+                "xdir": "normal", "ydir": "normal",
+                "xtick": None, "ytick": None,
+                "xticklabels": None, "yticklabels": None,
+                "tick_font": {"font_name": "Helvetica", "font_size": 10},
+                "color": [1, 1, 1],
+                "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+                "legend": {"visible": False, "entries": [], "location": "best"},
+                "children": [{
+                    "type": "line", "xdata": [0, 5, 10], "ydata": [0, 1, 0],
+                    "color": [0, 0.447, 0.741], "line_style": "-", "line_width": 2,
+                    "display_name": "", "marker": "none", "marker_size": 6,
+                    "marker_face_color": "none", "marker_edge_color": "auto",
+                }],
+            }],
+        }
+        result = convert_figure(matlab_fig)
+
+        assert "data" in result
+        assert "layout" in result
+        assert len(result["data"]) == 1
+        assert result["data"][0]["type"] == "scatter"
+        assert result["layout"]["paper_bgcolor"] == "rgb(240, 240, 240)"
+        assert result["layout"]["plot_bgcolor"] == "rgb(255, 255, 255)"
+        assert result["layout"]["title"]["text"] == "Test"
+
+    def test_subplot_figure(self):
+        from matlab_mcp.output.plotly_style_mapper import convert_figure
+
+        axes_template = {
+            "position": [0, 0, 0.5, 1],
+            "title": {"text": "", "font_name": "Helvetica", "font_size": 12, "font_weight": "normal"},
+            "xlabel": {}, "ylabel": {},
+            "xlim": None, "ylim": None,
+            "xgrid": False, "ygrid": False,
+            "xdir": "normal", "ydir": "normal",
+            "xtick": None, "ytick": None,
+            "xticklabels": None, "yticklabels": None,
+            "tick_font": {},
+            "color": [1, 1, 1],
+            "grid_color": [0.15, 0.15, 0.15], "grid_alpha": 0.15, "grid_line_style": "-",
+            "legend": {"visible": False, "entries": [], "location": "best"},
+            "children": [],
+        }
+        matlab_fig = {
+            "schema_version": 1,
+            "layout_type": "subplot",
+            "background_color": [1, 1, 1],
+            "grid": {"rows": 1, "cols": 2},
+            "axes": [
+                {**axes_template, "grid_index": {"row": 1, "col": 1, "rowspan": 1, "colspan": 1},
+                 "title": {"text": "Left", "font_name": "Helvetica", "font_size": 12, "font_weight": "normal"}},
+                {**axes_template, "grid_index": {"row": 1, "col": 2, "rowspan": 1, "colspan": 1},
+                 "title": {"text": "Right", "font_name": "Helvetica", "font_size": 12, "font_weight": "normal"}},
+            ],
+        }
+        result = convert_figure(matlab_fig)
+
+        assert "xaxis" in result["layout"]
+        assert "xaxis2" in result["layout"]
+        assert "yaxis" in result["layout"]
+        assert "yaxis2" in result["layout"]
+        assert "domain" in result["layout"]["xaxis"]
+        assert "domain" in result["layout"]["xaxis2"]
