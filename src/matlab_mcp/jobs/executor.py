@@ -71,10 +71,13 @@ class JobExecutor:
 
         # 1. Create job
         job = self._tracker.create_job(session_id, code)
+        logger.info("[job %s] Created for session=%s  code=%s",
+                    job.job_id[:8], session_id[:8], repr(code[:120]))
 
         # 2. Acquire engine
         engine = await self._pool.acquire()
         job.mark_running(engine.engine_id)
+        logger.info("[job %s] Acquired engine %s — executing", job.job_id[:8], engine.engine_id)
 
         # 3. Inject job context
         self._inject_job_context(engine, job, temp_dir)
@@ -87,6 +90,8 @@ class JobExecutor:
                                     stdout=job._stdout, stderr=job._stderr)
             job.future = future
         except Exception as exc:
+            logger.error("[job %s] Failed to start execution: %s: %s",
+                         job.job_id[:8], type(exc).__name__, exc)
             job.mark_failed(
                 error_type=type(exc).__name__,
                 message=str(exc),
@@ -111,9 +116,12 @@ class JobExecutor:
                 # Completed within timeout
                 result = self._build_result(engine, raw_result, job, temp_dir)
                 job.mark_completed(result)
+                elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
+                output_preview = (result.get("text") or "")[:200]
+                logger.info("[job %s] Completed in %.1fms  output=%s",
+                            job.job_id[:8], elapsed_ms, repr(output_preview))
                 await self._pool.release(engine)
                 if self._collector:
-                    elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
                     self._collector.record_event("job_completed", {
                         "job_id": job.job_id,
                         "execution_ms": elapsed_ms,
@@ -123,11 +131,15 @@ class JobExecutor:
                 return {"status": "completed", "job_id": job.job_id, **result}
             except (TimeoutError, concurrent.futures.TimeoutError, asyncio.TimeoutError):
                 # Promote to async
+                logger.info("[job %s] Sync timeout (%ds) — promoting to async background job",
+                            job.job_id[:8], sync_timeout)
                 asyncio.create_task(
                     self._wait_for_completion(job, engine, future, temp_dir)
                 )
                 return {"status": "pending", "job_id": job.job_id}
             except Exception as exc:
+                logger.error("[job %s] Execution failed: %s: %s",
+                             job.job_id[:8], type(exc).__name__, exc)
                 job.mark_failed(
                     error_type=type(exc).__name__,
                     message=str(exc),
@@ -186,8 +198,9 @@ class JobExecutor:
             )
             result = self._build_result(engine, raw_result, job, temp_dir)
             job.mark_completed(result)
+            elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
+            logger.info("[job %s] Async job completed in %.1fms", job.job_id[:8], elapsed_ms)
             if self._collector:
-                elapsed_ms = (job.completed_at - job.started_at) * 1000 if job.started_at and job.completed_at else 0
                 self._collector.record_event("job_completed", {
                     "job_id": job.job_id,
                     "execution_ms": elapsed_ms,
@@ -195,8 +208,11 @@ class JobExecutor:
                     "output": (result.get("text") or "")[:2000],
                 })
         except asyncio.CancelledError:
+            logger.warning("[job %s] Async job cancelled", job.job_id[:8])
             job.mark_cancelled()
         except Exception as exc:
+            logger.error("[job %s] Async job failed: %s: %s",
+                         job.job_id[:8], type(exc).__name__, exc)
             job.mark_failed(
                 error_type=type(exc).__name__,
                 message=str(exc),

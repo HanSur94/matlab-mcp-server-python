@@ -84,6 +84,9 @@ class EnginePoolManager:
         try:
             engine = self._available.get_nowait()
             engine.mark_busy()
+            logger.info("Acquired engine %s (available=%d, busy=%d)",
+                        engine.engine_id, self._available.qsize(),
+                        len(self._all_engines) - self._available.qsize())
             return engine
         except asyncio.QueueEmpty:
             pass
@@ -101,17 +104,22 @@ class EnginePoolManager:
                 return engine
 
         # At max capacity — wait for one to become available
-        logger.debug("Pool at max capacity, waiting for available engine")
+        logger.warning("Pool at max capacity (%d/%d busy) — waiting for available engine",
+                        len(self._all_engines), self._pool_config.max_engines)
         engine = await self._available.get()
         engine.mark_busy()
+        logger.info("Acquired engine %s after wait (pool was full)", engine.engine_id)
         return engine
 
     async def release(self, engine: MatlabEngineWrapper) -> None:
         """Return an engine to the pool."""
+        logger.info("Releasing engine %s — resetting workspace", engine.engine_id)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, engine.reset_workspace)
         engine.mark_idle()
         await self._available.put(engine)
+        logger.info("Engine %s returned to pool (available=%d)",
+                     engine.engine_id, self._available.qsize())
 
     async def stop(self) -> None:
         """Stop all engines in the pool."""

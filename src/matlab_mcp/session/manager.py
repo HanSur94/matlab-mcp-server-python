@@ -98,7 +98,8 @@ class SessionManager:
 
         session = Session(session_id=session_id, temp_dir=str(temp_dir))
         self._sessions[session_id] = session
-        logger.debug("Created session %s (temp_dir=%s)", session_id, temp_dir)
+        logger.info("Session created: %s (temp_dir=%s, total=%d/%d)",
+                     session_id[:8], temp_dir, len(self._sessions), self._max_sessions)
         if self._collector:
             self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
         return session
@@ -119,7 +120,7 @@ class SessionManager:
 
         session = Session(session_id=_DEFAULT_SESSION_ID, temp_dir=str(temp_dir))
         self._sessions[_DEFAULT_SESSION_ID] = session
-        logger.debug("Created default session (temp_dir=%s)", temp_dir)
+        logger.info("Default session created (temp_dir=%s)", temp_dir)
         if self._collector:
             self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
         return session
@@ -133,17 +134,21 @@ class SessionManager:
         if session is None:
             return False
 
+        idle_s = session.idle_seconds
+        logger.info("Destroying session %s (idle=%.0fs, remaining=%d)",
+                     session_id[:8], idle_s, len(self._sessions))
+
         # Clean up temp directory
         temp_path = Path(session.temp_dir)
         if temp_path.exists():
             try:
                 shutil.rmtree(temp_path)
-                logger.debug("Removed temp dir %s for session %s", temp_path, session_id)
+                logger.info("Removed temp dir %s for session %s", temp_path, session_id[:8])
             except Exception:
                 logger.warning(
                     "Failed to remove temp dir %s for session %s",
                     temp_path,
-                    session_id,
+                    session_id[:8],
                 )
         return True
 

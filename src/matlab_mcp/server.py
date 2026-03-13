@@ -154,14 +154,18 @@ def create_server(config: AppConfig) -> FastMCP:
             )
 
         # Create necessary directories
+        logger.info("Initializing directories...")
         result_dir = Path(config.server.result_dir)
         result_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("  Result dir: %s", result_dir)
 
         temp_dir = Path(config.execution.temp_dir)
         temp_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("  Temp dir:   %s", temp_dir)
 
         log_dir = Path(config.server.log_file).parent
         log_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("  Log dir:    %s", log_dir)
 
         # Add matlab_helpers to workspace paths so MATLAB can find helper functions
         helpers_dir = str(Path(__file__).parent / "matlab_helpers")
@@ -174,6 +178,7 @@ def create_server(config: AppConfig) -> FastMCP:
         monitoring_task = None
 
         if config.monitoring.enabled and state.collector:
+            logger.info("Initializing monitoring subsystem...")
             from matlab_mcp.monitoring.store import MetricsStore
 
             monitoring_dir = Path(config.monitoring.db_path).parent
@@ -181,6 +186,7 @@ def create_server(config: AppConfig) -> FastMCP:
 
             state.store = MetricsStore(config.monitoring.db_path)
             await state.store.initialize()
+            logger.info("  Metrics store: %s (initialized)", config.monitoring.db_path)
 
             state.collector.store = state.store
 
@@ -195,6 +201,7 @@ def create_server(config: AppConfig) -> FastMCP:
             state.collector.tracker = state.tracker
             state.collector.sessions = state.sessions
             collector_task = asyncio.create_task(state.collector.start_sampling())
+            logger.info("  Metrics collector sampling every %ds", config.monitoring.sample_interval)
 
         # Start monitoring HTTP server for stdio transport
         if (
@@ -228,7 +235,12 @@ def create_server(config: AppConfig) -> FastMCP:
             while True:
                 try:
                     await asyncio.sleep(interval)
+                    status_before = state.pool.get_status()
                     await state.pool.run_health_checks()
+                    status_after = state.pool.get_status()
+                    logger.debug("Health check done: engines %d/%d (avail=%d)",
+                                 status_after["busy"], status_after["total"],
+                                 status_after["available"])
                 except asyncio.CancelledError:
                     break
                 except Exception as exc:
@@ -239,35 +251,51 @@ def create_server(config: AppConfig) -> FastMCP:
             while True:
                 try:
                     await asyncio.sleep(60)
-                    state.sessions.cleanup_expired(
+                    removed = state.sessions.cleanup_expired(
                         has_active_jobs_fn=state.tracker.has_active_jobs
                     )
-                    state.tracker.prune()
+                    pruned = state.tracker.prune()
                     if state.store:
                         await state.store.prune(config.monitoring.retention_days)
+                    if removed or pruned:
+                        logger.info("Cleanup: %d sessions expired, %d jobs pruned",
+                                     removed, pruned)
                 except asyncio.CancelledError:
                     break
                 except Exception as exc:
                     logger.error("Cleanup loop error: %s", exc)
 
         health_task = asyncio.create_task(health_check_loop())
+        logger.info("Background task started: health checks (every %ds)", config.pool.health_check_interval)
         cleanup_task = asyncio.create_task(cleanup_loop())
+        logger.info("Background task started: session/job cleanup (every 60s)")
+        logger.info("=" * 60)
+        logger.info("Server ready — accepting connections")
+        logger.info("=" * 60)
 
         try:
             yield
         finally:
+            logger.info("=" * 60)
+            logger.info("Server shutting down...")
+            logger.info("=" * 60)
+
             # Stop monitoring (order: collector → store → HTTP server)
             if collector_task:
+                logger.info("Stopping metrics collector...")
                 collector_task.cancel()
                 await asyncio.gather(collector_task, return_exceptions=True)
             if state.store:
+                logger.info("Closing metrics store...")
                 await state.store.close()
             if monitoring_server is not None:
+                logger.info("Stopping monitoring HTTP server...")
                 monitoring_server.should_exit = True
             if monitoring_task is not None:
                 await monitoring_task
 
             # Cancel background tasks
+            logger.info("Cancelling background tasks...")
             health_task.cancel()
             cleanup_task.cancel()
             await asyncio.gather(health_task, cleanup_task, return_exceptions=True)
@@ -294,6 +322,9 @@ def create_server(config: AppConfig) -> FastMCP:
             logger.info("Stopping MATLAB engine pool...")
             await state.pool.stop()
             logger.info("MATLAB engine pool stopped")
+            logger.info("=" * 60)
+            logger.info("Shutdown complete")
+            logger.info("=" * 60)
 
     # ------------------------------------------------------------------
     # Create FastMCP instance
@@ -314,6 +345,7 @@ def create_server(config: AppConfig) -> FastMCP:
             mcp._additional_http_routes.append(
                 Mount("/", app=monitoring_sub_app)
             )
+            logger.info("Monitoring routes mounted for SSE transport (/dashboard, /health)")
         except Exception as exc:
             logger.warning("Failed to mount monitoring routes for SSE: %s", exc)
 
@@ -328,15 +360,20 @@ def create_server(config: AppConfig) -> FastMCP:
         Runs the given MATLAB code string in the session's engine.
         Returns a result dict with status, job_id, output, variables, etc.
         """
+        logger.info("Tool call: execute_code  session=%s  code=%s",
+                     state._get_session_id(ctx)[:8], repr(code[:120]))
         session_id = state._get_session_id(ctx)
         state.sessions.get_or_create_default() if session_id == "default" else None
         temp_dir = state._get_temp_dir(session_id)
-        return await execute_code_impl(
+        result = await execute_code_impl(
             code=code,
             session_id=session_id,
             executor=state.executor,
             security=state.security,
         )
+        logger.info("Tool result: execute_code  status=%s  job=%s",
+                     result.get("status"), result.get("job_id", "")[:8])
+        return result
 
     @mcp.tool
     async def check_code(ctx: Context, code: str) -> dict:
@@ -604,7 +641,46 @@ def main() -> None:
     )
 
     transport = config.server.transport
-    logger.info("Starting MATLAB MCP Server (transport=%s)", transport)
+
+    # Startup banner with full config summary
+    logger.info("=" * 60)
+    logger.info("MATLAB MCP Server starting")
+    logger.info("=" * 60)
+    logger.info("  Transport:       %s", transport)
+    if transport == "sse":
+        logger.info("  SSE endpoint:    http://%s:%d/sse", config.server.host, config.server.port)
+    logger.info("  Log level:       %s", config.server.log_level)
+    logger.info("  Log file:        %s", config.server.log_file)
+    logger.info("  Config file:     %s", config_path if config_path.exists() else "(defaults)")
+    logger.info("--- Pool ---")
+    logger.info("  Min engines:     %d", config.pool.min_engines)
+    logger.info("  Max engines:     %d", config.pool.max_engines)
+    logger.info("  Health interval: %ds", config.pool.health_check_interval)
+    logger.info("  Idle timeout:    %ds", config.pool.scale_down_idle_timeout)
+    logger.info("  MATLAB root:     %s", config.pool.matlab_root or "(auto-detect)")
+    logger.info("--- Execution ---")
+    logger.info("  Sync timeout:    %ds", config.execution.sync_timeout)
+    logger.info("  Max exec time:   %ds", config.execution.max_execution_time)
+    logger.info("  Workspace iso:   %s", config.execution.workspace_isolation)
+    logger.info("  Temp dir:        %s", config.execution.temp_dir)
+    logger.info("--- Security ---")
+    logger.info("  Blocked funcs:   %s", config.security.blocked_functions if config.security.blocked_functions_enabled else "(disabled)")
+    logger.info("  Max upload:      %d MB", config.security.max_upload_size_mb)
+    logger.info("  Proxy auth:      %s", config.security.require_proxy_auth)
+    logger.info("--- Sessions ---")
+    logger.info("  Max sessions:    %d", config.sessions.max_sessions)
+    logger.info("  Session timeout: %ds", config.sessions.session_timeout)
+    logger.info("--- Monitoring ---")
+    logger.info("  Enabled:         %s", config.monitoring.enabled)
+    if config.monitoring.enabled:
+        logger.info("  Sample interval: %ds", config.monitoring.sample_interval)
+        logger.info("  Retention:       %d days", config.monitoring.retention_days)
+        logger.info("  DB path:         %s", config.monitoring.db_path)
+        if transport == "stdio":
+            logger.info("  Dashboard:       http://127.0.0.1:%d/dashboard", config.monitoring.http_port)
+        else:
+            logger.info("  Dashboard:       http://%s:%d/dashboard", config.server.host, config.server.port)
+    logger.info("=" * 60)
 
     server = create_server(config)
 

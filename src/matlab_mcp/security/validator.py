@@ -6,8 +6,11 @@ Provides:
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class BlockedFunctionError(Exception):
@@ -75,6 +78,7 @@ class SecurityValidator:
             If a blocked construct is found (and blocking is enabled).
         """
         if not self._config.blocked_functions_enabled:
+            logger.debug("Security check skipped (blocked_functions disabled)")
             return
 
         # Strip string literals to avoid false positives
@@ -85,6 +89,7 @@ class SecurityValidator:
                 # Shell escape: lines starting with ! (after optional whitespace)
                 for line in sanitized.splitlines():
                     if line.lstrip().startswith("!"):
+                        logger.warning("BLOCKED: shell escape '!' in code: %s", repr(code[:120]))
                         if self._collector:
                             self._collector.record_event("blocked_function", {"function": "!"})
                         raise BlockedFunctionError(
@@ -96,6 +101,7 @@ class SecurityValidator:
                 # as a standalone command (no parens required for e.g. `system cmd`)
                 pattern = rf"\b{re.escape(func)}\s*\("
                 if re.search(pattern, sanitized):
+                    logger.warning("BLOCKED: function '%s' in code: %s", func, repr(code[:120]))
                     if self._collector:
                         self._collector.record_event("blocked_function", {"function": func})
                     raise BlockedFunctionError(
