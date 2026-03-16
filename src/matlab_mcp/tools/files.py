@@ -6,6 +6,7 @@ Provides:
 - list_files_impl    — list files in the session temp directory
 - read_script_impl   — read a .m script from the session temp directory
 - read_image_impl    — read an image file and return a FastMCP Image object
+- read_data_impl     — read a data file (.mat, .csv, .json, etc.)
 """
 from __future__ import annotations
 
@@ -318,3 +319,138 @@ async def read_image_impl(
 
     data = target.read_bytes()
     return Image(data=data, format=_IMAGE_EXTENSIONS[ext])
+
+
+_DATA_EXTENSIONS = {".mat", ".xlsx", ".csv", ".txt", ".json", ".yaml", ".yml", ".xml"}
+
+
+async def read_data_impl(
+    filename: str,
+    format: str,
+    session_temp_dir: str,
+    security: Any,
+    max_size_mb: int = _DEFAULT_MAX_SIZE_MB,
+    max_inline_text_length: int = 50000,
+    executor: Any = None,
+    session_id: str = "",
+) -> dict:
+    """Read a data file from the session's temporary directory.
+
+    Parameters
+    ----------
+    filename:
+        Filename to read (basename only; no path separators allowed).
+    format:
+        Either ``"summary"`` (human-readable overview) or ``"raw"``
+        (full content, base64 for binary files).
+    session_temp_dir:
+        Path to the session's temporary directory.
+    security:
+        A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+    max_size_mb:
+        Maximum allowed file size in megabytes.
+    max_inline_text_length:
+        Maximum number of characters to return inline for text files;
+        content beyond this limit is truncated.
+    executor:
+        An optional MATLAB executor (used for ``.mat`` summary via ``whos``).
+    session_id:
+        Session identifier passed to the executor.
+
+    Returns
+    -------
+    dict
+        Result dict with ``status``, ``filename``, ``content``, and optionally
+        ``encoding``, ``size_bytes``, or ``message``.
+    """
+    try:
+        safe_name = security.sanitize_filename(filename)
+    except ValueError as exc:
+        return {"status": "error", "message": f"Invalid filename: {exc}"}
+
+    target = Path(session_temp_dir) / safe_name
+    if not target.exists():
+        return {"status": "error", "message": f"File not found: {safe_name}"}
+
+    file_size = target.stat().st_size
+    max_bytes = max_size_mb * 1024 * 1024
+    if file_size > max_bytes:
+        return {
+            "status": "error",
+            "message": (
+                f"File size {file_size} bytes exceeds maximum of "
+                f"{max_size_mb} MB ({max_bytes} bytes)"
+            ),
+        }
+
+    ext = Path(safe_name).suffix.lower()
+    if ext not in _DATA_EXTENSIONS:
+        supported = ", ".join(sorted(_DATA_EXTENSIONS))
+        return {
+            "status": "error",
+            "message": f"Unsupported data file type '{ext}'. Supported: {supported}",
+        }
+
+    # .mat files — summary uses MATLAB whos, raw returns base64
+    if ext == ".mat":
+        if format == "summary" and executor is not None:
+            mat_path = str(target).replace("'", "''")
+            code = (
+                f"s = whos('-file', '{mat_path}');\n"
+                f"for i = 1:length(s)\n"
+                f"    fprintf('%s  %s  %s\\n', s(i).name, "
+                f"mat2str(s(i).size), s(i).class);\n"
+                f"end"
+            )
+            try:
+                mat_result = await executor.execute(
+                    session_id=session_id,
+                    code=code,
+                )
+                return {
+                    "status": "ok",
+                    "filename": safe_name,
+                    "content": mat_result.get("output", ""),
+                }
+            except Exception as exc:
+                return {"status": "error", "message": f"MATLAB whos failed: {exc}"}
+        else:
+            data = target.read_bytes()
+            return {
+                "status": "ok",
+                "filename": safe_name,
+                "content": base64.b64encode(data).decode("ascii"),
+                "encoding": "base64",
+                "size_bytes": len(data),
+            }
+
+    # .xlsx — always base64 (binary format)
+    if ext == ".xlsx":
+        data = target.read_bytes()
+        return {
+            "status": "ok",
+            "filename": safe_name,
+            "content": base64.b64encode(data).decode("ascii"),
+            "encoding": "base64",
+            "size_bytes": len(data),
+        }
+
+    # Text files (.csv, .txt, .json, .yaml, .yml, .xml)
+    try:
+        content = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = target.read_text(encoding="latin-1")
+    except Exception as exc:
+        return {"status": "error", "message": f"Failed to read file: {exc}"}
+
+    result: dict = {"status": "ok", "filename": safe_name}
+    if len(content) > max_inline_text_length:
+        result["content"] = content[:max_inline_text_length]
+        result["message"] = (
+            f"Content truncated from {len(content)} to "
+            f"{max_inline_text_length} characters"
+        )
+    else:
+        result["content"] = content
+
+    return result

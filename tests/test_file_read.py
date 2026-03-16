@@ -1,12 +1,15 @@
 """Tests for file read tools (read_script, read_data, read_image)."""
 from __future__ import annotations
 
+import base64
+from unittest.mock import AsyncMock
+
 import pytest
 from pathlib import Path
 
 from matlab_mcp.security.validator import SecurityValidator
 from matlab_mcp.config import SecurityConfig
-from matlab_mcp.tools.files import read_script_impl, read_image_impl
+from matlab_mcp.tools.files import read_script_impl, read_image_impl, read_data_impl
 
 
 @pytest.fixture
@@ -189,3 +192,117 @@ class TestReadImage:
         )
         assert isinstance(result, dict)
         assert result["status"] == "error"
+
+
+@pytest.fixture
+def mock_executor():
+    executor = AsyncMock()
+    executor.execute = AsyncMock(return_value={
+        "status": "completed",
+        "output": "Name      Size       Bytes  Class\nx         3x3          72  double\ny         1x10         80  double\n",
+    })
+    return executor
+
+
+class TestReadData:
+    async def test_csv_summary(self, security, tmp_session_dir, mock_executor):
+        p = Path(tmp_session_dir) / "data.csv"
+        p.write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+        result = await read_data_impl(
+            filename="data.csv",
+            format="summary",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "ok"
+        assert "a,b,c" in result["content"]
+
+    async def test_csv_raw(self, security, tmp_session_dir, mock_executor):
+        p = Path(tmp_session_dir) / "data.csv"
+        p.write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+        result = await read_data_impl(
+            filename="data.csv",
+            format="raw",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "ok"
+        assert "a,b,c" in result["content"]
+
+    async def test_mat_summary(self, security, tmp_session_dir, mock_executor):
+        p = Path(tmp_session_dir) / "data.mat"
+        p.write_bytes(b"fake-mat-content")
+        result = await read_data_impl(
+            filename="data.mat",
+            format="summary",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "ok"
+        mock_executor.execute.assert_called_once()
+        call_args = mock_executor.execute.call_args
+        # Check that whos was called (could be positional or keyword)
+        code_arg = call_args.kwargs.get("code", "") or (
+            call_args.args[1] if len(call_args.args) > 1 else ""
+        )
+        assert "whos" in code_arg
+
+    async def test_mat_raw(self, security, tmp_session_dir, mock_executor):
+        content = b"fake-mat-content"
+        p = Path(tmp_session_dir) / "data.mat"
+        p.write_bytes(content)
+        result = await read_data_impl(
+            filename="data.mat",
+            format="raw",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "ok"
+        assert result["encoding"] == "base64"
+        decoded = base64.b64decode(result["content"])
+        assert decoded == content
+
+    async def test_not_found(self, security, tmp_session_dir, mock_executor):
+        result = await read_data_impl(
+            filename="missing.csv",
+            format="summary",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "error"
+
+    async def test_xlsx_returns_base64(self, security, tmp_session_dir, mock_executor):
+        p = Path(tmp_session_dir) / "sheet.xlsx"
+        p.write_bytes(b"PK\x03\x04fake-xlsx")
+        result = await read_data_impl(
+            filename="sheet.xlsx",
+            format="summary",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            max_size_mb=100,
+            max_inline_text_length=50000,
+            executor=mock_executor,
+            session_id="test-session",
+        )
+        assert result["status"] == "ok"
+        assert result["encoding"] == "base64"
