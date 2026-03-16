@@ -38,6 +38,14 @@ eng.quit()
 
 ## Step 2: Install the MCP Server
 
+### Option A: Install from PyPI
+
+```bash
+pip install matlab-mcp-python
+```
+
+### Option B: Install from source
+
 ```bash
 git clone https://github.com/HanSur94/matlab-mcp-server-python.git
 cd matlab-mcp-server-python
@@ -104,6 +112,26 @@ matlab-mcp --transport sse
 ```
 
 Then point your client to `http://localhost:8765/sse`.
+
+### Run with Docker
+
+```bash
+# Build the image
+docker build -t matlab-mcp .
+
+# Run with your MATLAB mounted
+docker run -p 8765:8765 -p 8766:8766 \
+  -v /path/to/MATLAB:/opt/matlab:ro \
+  -e MATLAB_MCP_POOL_MATLAB_ROOT=/opt/matlab \
+  matlab-mcp
+
+# Or use docker-compose (edit docker-compose.yml to set your MATLAB path)
+docker compose up
+```
+
+> **Note:** The Docker image does not include MATLAB. You must mount your own MATLAB installation and ensure the MATLAB Engine API for Python is accessible inside the container.
+
+> **Upgrading?** If you previously installed as `matlab-mcp-server`, uninstall first: `pip uninstall matlab-mcp-server && pip install matlab-mcp-python`
 
 ## Virtual Environment (Recommended)
 

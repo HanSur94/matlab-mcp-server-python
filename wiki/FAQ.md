@@ -18,6 +18,19 @@ Not currently. The server connects to locally-installed MATLAB via the Engine AP
 
 Any agent that supports the Model Context Protocol (MCP): Claude Desktop, Claude Code, Cursor, GitHub Copilot (with MCP support), and custom agents built with MCP SDKs.
 
+### Can I install it from PyPI?
+
+Yes:
+```bash
+pip install matlab-mcp-python
+```
+
+You still need to install the MATLAB Engine API separately from your MATLAB installation. See [[Installation]].
+
+### Can I run it in Docker?
+
+Yes. The project includes a `Dockerfile` and `docker-compose.yml`. The Docker image does **not** include MATLAB — you must mount your own MATLAB installation as a volume. See [[Installation]] for Docker setup instructions.
+
 ## Setup
 
 ### How do I install the MATLAB Engine API?
@@ -66,6 +79,15 @@ Yes! MATLAB figures are automatically converted to Plotly JSON, which renders as
 ### What plot types are supported for Plotly conversion?
 
 Line, scatter, bar, histogram, surface, and image plots. Complex custom graphics may fall back to static PNG.
+
+### Can I read files back from the session?
+
+Yes, three tools are available:
+- **`read_script`** — read `.m` script files as text
+- **`read_data`** — read data files (`.mat`, `.csv`, `.json`, `.txt`, `.xlsx`) with summary or raw mode
+- **`read_image`** — read image files (`.png`, `.jpg`, `.gif`) as inline images that render in agent UIs
+
+Use `list_files` first to see what files are available in your session.
 
 ## Performance
 

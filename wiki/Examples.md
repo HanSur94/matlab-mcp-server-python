@@ -127,6 +127,53 @@ The agent gets a job ID immediately and can poll progress:
 - "Trial 500000/1000000 — 50%"
 - ...until complete.
 
+## File Reading
+
+The server provides tools to read files back from the session temp directory — useful for retrieving generated scripts, data, and plots.
+
+### Read a MATLAB Script
+
+> "Show me the contents of the script you just saved"
+
+The agent calls `read_script`:
+```
+read_script(filename="analysis.m")
+```
+
+Returns the `.m` file content as inline text.
+
+### Read Data File Summary
+
+> "What variables are in the results.mat file?"
+
+The agent calls `read_data` in summary mode:
+```
+read_data(filename="results.mat", format="summary")
+```
+
+Returns a table of variable names, sizes, and types (via MATLAB `whos`). Use `format="raw"` to get the raw base64-encoded file content instead.
+
+### Read CSV Data
+
+> "Show me the output CSV"
+
+```
+read_data(filename="output.csv", format="summary")
+```
+
+Returns the text content of the CSV file inline.
+
+### View a Generated Plot
+
+> "Show me the plot you just created"
+
+The agent calls `read_image`:
+```
+read_image(filename="result.png")
+```
+
+Returns the image as an inline content block — renders directly in Claude Desktop, Cursor, and other agent UIs. Supported formats: `.png`, `.jpg`, `.gif`.
+
 ## Configuration Examples
 
 ### Minimal (Single User)
