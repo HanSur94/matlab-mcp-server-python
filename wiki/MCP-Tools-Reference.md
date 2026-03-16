@@ -272,4 +272,4 @@ Get recent errors and notable events.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `limit` | integer | no | Number of recent events to return (default varies) |
+| `limit` | integer | no | Number of recent events to return (default 20) |

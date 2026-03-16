@@ -723,7 +723,7 @@ src/matlab_mcp/
 |-----------|-------------|
 | Function blocklist | Blocks `system()`, `unix()`, `dos()`, `!`, `eval()`, `feval()`, `evalc()`, `evalin()`, `assignin()`, `perl()`, `python()` by default |
 | Filename sanitization | Rejects filenames with path traversal or invalid characters |
-| Workspace isolation | `clear all; clear global; clear functions;` between sessions |
+| Workspace isolation | `clear all; clear global; clear functions; fclose all; restoredefaultpath;` between sessions |
 | SSE proxy auth | Requires reverse proxy with auth for production |
 | Upload size limits | Configurable max upload size (default 100MB) |
 

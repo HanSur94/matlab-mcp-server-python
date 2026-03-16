@@ -51,6 +51,13 @@ security:
     - "unix"
     - "dos"
     - "!"
+    - "eval"
+    - "feval"
+    - "evalc"
+    - "evalin"
+    - "assignin"
+    - "perl"
+    - "python"
   max_upload_size_mb: 100
   require_proxy_auth: false      # set true to acknowledge SSE is behind auth proxy
 
