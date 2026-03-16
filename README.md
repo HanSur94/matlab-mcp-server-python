@@ -13,6 +13,18 @@
   <a href="https://github.com/HanSur94/matlab-mcp-server-python/wiki">Wiki</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/HanSur94/matlab-mcp-server-python/actions/workflows/ci.yml">
+    <img src="https://github.com/HanSur94/matlab-mcp-server-python/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://pypi.org/project/matlab-mcp-python/">
+    <img src="https://img.shields.io/pypi/v/matlab-mcp-python" alt="PyPI">
+  </a>
+  <a href="https://pypi.org/project/matlab-mcp-python/">
+    <img src="https://img.shields.io/pypi/pyversions/matlab-mcp-python" alt="Python">
+  </a>
+</p>
+
 ---
 
 A Python MCP server that connects **any AI agent** (Claude, Cursor, Copilot, custom agents) to a shared MATLAB installation. Execute code, discover toolboxes, check code quality, get interactive Plotly plots, and run long simulations — all through [MCP](https://modelcontextprotocol.io/).
@@ -56,6 +68,10 @@ pip install .
 ### Install the server
 
 ```bash
+# Option 1: Install from PyPI
+pip install matlab-mcp-python
+
+# Option 2: Install from source
 git clone https://github.com/HanSur94/matlab-mcp-server-python.git
 cd matlab-mcp-server-python
 pip install -e ".[dev]"
@@ -104,6 +120,26 @@ Add to `.cursor/mcp.json` in your project:
   }
 }
 ```
+
+### Run with Docker
+
+```bash
+# Build the image
+docker build -t matlab-mcp .
+
+# Run with your MATLAB mounted
+docker run -p 8765:8765 -p 8766:8766 \
+  -v /path/to/MATLAB:/opt/matlab:ro \
+  -e MATLAB_MCP_POOL_MATLAB_ROOT=/opt/matlab \
+  matlab-mcp
+
+# Or use docker-compose (edit docker-compose.yml to set your MATLAB path)
+docker compose up
+```
+
+> **Note:** The Docker image does not include MATLAB. You must mount your own MATLAB installation.
+
+> **Upgrading?** If you previously installed as `matlab-mcp-server`, uninstall first: `pip uninstall matlab-mcp-server && pip install matlab-mcp-python`
 
 ## Examples
 
@@ -234,6 +270,14 @@ Now the agent can call `analyze_signal` or `train_model` directly — with full 
 | `upload_data` | `filename: str, content_base64: str` | Upload data files to the session |
 | `delete_file` | `filename: str` | Delete a session file |
 | `list_files` | — | List files in the session directory |
+
+### File Reading
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `read_script` | `filename: str` | Read a MATLAB `.m` script file as text |
+| `read_data` | `filename: str, format: str` | Read data files (`.mat`, `.csv`, `.json`, `.txt`, `.xlsx`). `format`: `summary` or `raw` |
+| `read_image` | `filename: str` | Read image files (`.png`, `.jpg`, `.gif`) — renders inline in agent UIs |
 
 ### Admin
 
@@ -558,7 +602,7 @@ AI Agent (Claude, Cursor, etc.)
        ▼
 ┌──────────────────────────────────────────────────────────┐
 │   MCP Server (FastMCP 2.x)                                │
-│   17 tools + custom tools                                 │
+│   20 tools + custom tools                                 │
 │   Session manager  │  Security validator  │  Formatter    │
 └──────────┬───────────────────────────────┬───────────────┘
            │                               │

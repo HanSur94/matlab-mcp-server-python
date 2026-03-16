@@ -9,7 +9,7 @@ AI Agent (Claude, Cursor, Copilot, etc.)
        ▼
 ┌─────────────────────────────────┐
 │   MCP Server (FastMCP)           │
-│   ├─ 17 built-in tools           │
+│   ├─ 20 built-in tools           │
 │   ├─ Custom tools (from YAML)    │
 │   ├─ Session manager             │
 │   ├─ Security validator          │
@@ -43,7 +43,7 @@ AI Agent (Claude, Cursor, Copilot, etc.)
 
 The entry point. Uses [FastMCP](https://github.com/jlowin/fastmcp) to handle MCP protocol details. Responsibilities:
 
-- Register all 17 tools + custom tools
+- Register all 20 tools + custom tools
 - Manage server lifecycle (startup, shutdown, drain)
 - Route tool calls to implementation modules
 - Run background tasks (health checks, cleanup)

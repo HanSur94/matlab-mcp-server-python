@@ -29,7 +29,7 @@ git push origin master
 - **Home.md** — Main page with navigation
 - **Installation.md** — Prerequisites, setup, agent integration
 - **Configuration.md** — Full YAML config reference
-- **MCP-Tools-Reference.md** — All 17 tools with parameters
+- **MCP-Tools-Reference.md** — All 20 tools with parameters
 - **Custom-Tools.md** — How to expose .m functions
 - **Examples.md** — Ready-to-run MATLAB examples
 - **Architecture.md** — System design and data flow

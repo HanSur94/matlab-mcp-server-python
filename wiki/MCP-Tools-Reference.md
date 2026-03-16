@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-The server exposes 17 built-in tools plus any custom tools defined in your `custom_tools.yaml`.
+The server exposes 20 built-in tools plus any custom tools defined in your `custom_tools.yaml`.
 
 ## Code Execution
 
@@ -187,6 +187,41 @@ Get the current engine pool status.
   "max_engines": 10
 }
 ```
+
+## File Reading
+
+### `read_script`
+
+Read a MATLAB `.m` script file from the session temp directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filename` | string | yes | `.m` file to read |
+
+Returns the file content as inline text.
+
+### `read_data`
+
+Read a data file from the session temp directory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filename` | string | yes | Data file to read |
+| `format` | string | no | `summary` (default) or `raw` |
+
+**Behavior by file type:**
+- `.mat` summary: shows variable names, sizes, types via MATLAB `whos`
+- `.mat` raw: returns base64-encoded content
+- `.csv`, `.txt`, `.json`: returns text content
+- `.xlsx`: returns base64-encoded content
+
+### `read_image`
+
+Read an image file from the session temp directory. Returns an inline image that renders in agent UIs.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filename` | string | yes | Image file (`.png`, `.jpg`, `.gif`) |
 
 ## Monitoring
 
