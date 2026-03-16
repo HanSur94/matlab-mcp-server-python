@@ -96,7 +96,7 @@ For SSE transport:
 
 ### Can agents run arbitrary system commands?
 
-No. The security validator blocks `system()`, `unix()`, `dos()`, and `!` by default. You can customize the blocklist. See [[Security]].
+No. The security validator blocks `system()`, `unix()`, `dos()`, `!`, `eval()`, `feval()`, `evalc()`, `evalin()`, `assignin()`, `perl()`, and `python()` by default. You can customize the blocklist. See [[Security]].
 
 ### Are user sessions isolated?
 

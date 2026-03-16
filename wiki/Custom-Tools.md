@@ -27,24 +27,25 @@ tools:
     description: "What it does"    # Shown to agents
     parameters:
       - name: param_name
-        type: string               # string | double | int | logical
+        type: string               # string | float | int | bool (see table below)
         required: true             # or false
-        description: "What this parameter does"
       - name: optional_param
-        type: double
+        type: float
         default: 1.0               # Default value if not provided
-        description: "Optional param with default"
     returns: "Description of return value"
 ```
 
 ## Parameter Types
 
-| YAML Type | MATLAB Type | Python Type |
-|-----------|-------------|-------------|
-| `string` | `char` | `str` |
-| `double` | `double` | `float` |
-| `int` | `int64` | `int` |
-| `logical` | `logical` | `bool` |
+| YAML Type | Aliases | Python Type |
+|-----------|---------|-------------|
+| `string` | `str` | `str` |
+| `float` | `number` | `float` |
+| `int` | `integer` | `int` |
+| `bool` | `boolean` | `bool` |
+| `list` | — | `list` |
+| `dict` | — | `dict` |
+| `any` | — | `Any` |
 
 ## Complete Example
 
@@ -88,15 +89,12 @@ tools:
       - name: signal_path
         type: string
         required: true
-        description: "Path to the signal data file (.mat)"
       - name: sample_rate
-        type: double
+        type: float
         required: true
-        description: "Sample rate in Hz"
       - name: window_size
         type: int
         default: 1024
-        description: "FFT window size"
     returns: "Struct with fields: frequencies, magnitudes, snr, peaks"
 ```
 
@@ -154,7 +152,7 @@ tools:
         type: string
         required: true
       - name: denoise_strength
-        type: double
+        type: float
         default: 0.5
     returns: "Enhanced image saved to temp directory"
 ```

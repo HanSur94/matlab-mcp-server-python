@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-The server exposes 14 built-in tools plus any custom tools defined in your `custom_tools.yaml`.
+The server exposes 17 built-in tools plus any custom tools defined in your `custom_tools.yaml`.
 
 ## Code Execution
 
@@ -187,3 +187,54 @@ Get the current engine pool status.
   "max_engines": 10
 }
 ```
+
+## Monitoring
+
+### `get_server_metrics`
+
+Get comprehensive server metrics (pool, jobs, sessions, system).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| (none) | — | — | — |
+
+**Example response:**
+```json
+{
+  "pool": {"total": 2, "available": 1, "busy": 1, "max": 10, "utilization_pct": 50.0},
+  "jobs": {"active": 1, "completed_total": 47, "failed_total": 2, "avg_execution_ms": 28.5},
+  "sessions": {"total_created": 5, "active": 3},
+  "errors": {"total": 2, "blocked_attempts": 0},
+  "system": {"uptime_seconds": 3600.1, "memory_mb": 108.8, "cpu_percent": 12.3}
+}
+```
+
+### `get_server_health`
+
+Get health status with issue detection.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| (none) | — | — | — |
+
+**Status values:** `healthy`, `degraded`, `unhealthy`
+
+**Example response:**
+```json
+{
+  "status": "healthy",
+  "uptime_seconds": 3600.1,
+  "issues": [],
+  "engines": {"total": 2, "available": 1, "busy": 1},
+  "active_jobs": 1,
+  "active_sessions": 3
+}
+```
+
+### `get_error_log`
+
+Get recent errors and notable events.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | integer | no | Number of recent events to return (default varies) |

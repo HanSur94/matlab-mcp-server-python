@@ -56,7 +56,7 @@ get_job_result → {output: "0.5023", status: "completed"}
 
 ## How Progress Works Internally
 
-1. `mcp_progress.m` writes a JSON file to `MCP_TEMP_DIR/<job_id>.progress`
+1. `mcp_progress.m` writes a JSON file to `__mcp_temp_dir__/<job_id>.progress`
 2. `get_job_status` reads this file and includes progress in the response
 3. The file is cleaned up when the job completes
 

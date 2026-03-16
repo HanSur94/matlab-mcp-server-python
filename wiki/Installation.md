@@ -44,6 +44,8 @@ cd matlab-mcp-server-python
 pip install -e ".[dev]"
 ```
 
+**Note:** The `[dev]` extras include all optional dependencies (testing, monitoring). For a minimal install without dev/monitoring dependencies, use `pip install -e .` instead. To add only monitoring support (dashboard, health endpoint), use `pip install -e ".[monitoring]"`.
+
 ## Step 3: Run
 
 ```bash

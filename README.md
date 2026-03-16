@@ -177,9 +177,8 @@ tools:
       - name: signal_path
         type: string
         required: true
-        description: "Path to the signal data file (.mat)"
       - name: sample_rate
-        type: double
+        type: float
         required: true
       - name: window_size
         type: int
@@ -325,6 +324,13 @@ security:
     - "unix"
     - "dos"
     - "!"
+    - "eval"
+    - "feval"
+    - "evalc"
+    - "evalin"
+    - "assignin"
+    - "perl"
+    - "python"
   max_upload_size_mb: 100
   require_proxy_auth: false
 ```
@@ -654,7 +660,8 @@ src/matlab_mcp/
 │   └── static/        # Dashboard HTML, CSS, JS (Plotly.js)
 ├── output/
 │   ├── formatter.py   # Result formatting
-│   ├── plotly_convert.py
+│   ├── plotly_convert.py       # Load Plotly JSON from MATLAB extraction
+│   ├── plotly_style_mapper.py  # MATLAB→Plotly style/property conversion
 │   └── thumbnail.py
 ├── session/
 │   └── manager.py     # Session lifecycle, temp dirs
@@ -670,8 +677,8 @@ src/matlab_mcp/
 
 | Protection | Description |
 |-----------|-------------|
-| Function blocklist | Blocks `system()`, `unix()`, `dos()`, `!` by default |
-| Filename sanitization | Prevents path traversal in uploads |
+| Function blocklist | Blocks `system()`, `unix()`, `dos()`, `!`, `eval()`, `feval()`, `evalc()`, `evalin()`, `assignin()`, `perl()`, `python()` by default |
+| Filename sanitization | Rejects filenames with path traversal or invalid characters |
 | Workspace isolation | `clear all; clear global; clear functions;` between sessions |
 | SSE proxy auth | Requires reverse proxy with auth for production |
 | Upload size limits | Configurable max upload size (default 100MB) |

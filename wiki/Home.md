@@ -6,7 +6,7 @@ Welcome to the **MATLAB MCP Server** wiki! This server connects any AI agent to 
 
 - **[[Installation]]** — Prerequisites, MATLAB Engine API, server setup
 - **[[Configuration]]** — Full YAML config reference with all options
-- **[[MCP Tools Reference]]** — All 14 built-in tools with parameters and examples
+- **[[MCP Tools Reference]]** — All 17 built-in tools with parameters and examples
 - **[[Custom Tools]]** — Expose your own `.m` functions as AI-callable tools
 - **[[Examples]]** — Ready-to-run MATLAB examples for common tasks
 - **[[Architecture]]** — System design, engine pool, async jobs, session model

@@ -22,6 +22,8 @@ export MATLAB_MCP_SERVER_TRANSPORT=sse
 export MATLAB_MCP_SERVER_PORT=9000
 ```
 
+**Note:** The section name is determined by splitting on the first underscore after `MATLAB_MCP_`. This means single-word sections work as expected (e.g., `MATLAB_MCP_POOL_MAX_ENGINES` → `pool.max_engines`), but multi-word section names like `code_checker` or `custom_tools` cannot be overridden via environment variables. Use the config file for those sections instead.
+
 ## Full Configuration Reference
 
 ### Server
@@ -116,6 +118,13 @@ security:
     - "unix"
     - "dos"
     - "!"
+    - "eval"
+    - "feval"
+    - "evalc"
+    - "evalin"
+    - "assignin"
+    - "perl"
+    - "python"
   max_upload_size_mb: 100
   require_proxy_auth: false        # Set true for production SSE deployments
 ```
@@ -151,6 +160,24 @@ sessions:
   max_sessions: 50
   session_timeout: 3600            # Seconds of inactivity before cleanup (1h)
   job_retention_seconds: 86400     # Keep completed job metadata for 24h
+```
+
+### Monitoring
+
+```yaml
+monitoring:
+  enabled: true                      # Enable metrics collection
+  sample_interval: 10                # Seconds between metric samples
+  retention_days: 7                  # Days to keep historical data
+  db_path: "./monitoring/metrics.db" # SQLite database path
+  dashboard_enabled: true            # Enable web dashboard
+  http_port: 8766                    # Dashboard port (stdio only)
+```
+
+**Note:** Monitoring requires optional dependencies (`psutil`, `uvicorn`). Install with:
+```bash
+pip install -e ".[monitoring]"
+# or pip install -e ".[dev]"  (dev includes monitoring dependencies)
 ```
 
 ## Example Configurations

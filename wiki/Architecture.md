@@ -9,7 +9,7 @@ AI Agent (Claude, Cursor, Copilot, etc.)
        ▼
 ┌─────────────────────────────────┐
 │   MCP Server (FastMCP)           │
-│   ├─ 14 built-in tools           │
+│   ├─ 17 built-in tools           │
 │   ├─ Custom tools (from YAML)    │
 │   ├─ Session manager             │
 │   ├─ Security validator          │
@@ -43,7 +43,7 @@ AI Agent (Claude, Cursor, Copilot, etc.)
 
 The entry point. Uses [FastMCP](https://github.com/jlowin/fastmcp) to handle MCP protocol details. Responsibilities:
 
-- Register all 14 tools + custom tools
+- Register all 17 tools + custom tools
 - Manage server lifecycle (startup, shutdown, drain)
 - Route tool calls to implementation modules
 - Run background tasks (health checks, cleanup)
@@ -73,7 +73,7 @@ Wraps a single `matlab.engine` instance:
 Hybrid sync/async execution:
 
 1. Code is security-checked (blocked functions scan)
-2. Job context is injected (`__mcp_job_id__`, `MCP_TEMP_DIR`)
+2. Job context is injected (`__mcp_job_id__`, `__mcp_temp_dir__`)
 3. Execution starts synchronously
 4. If `sync_timeout` exceeded → auto-promote to async, return `job_id`
 5. Background task monitors completion, stores result
@@ -99,7 +99,7 @@ Per-user session isolation:
 
 Pre-execution security checks:
 
-- **Function blocklist:** Scans code for blocked functions (`system`, `unix`, `dos`, `!`). Smart enough to strip string literals and comments first to avoid false positives
+- **Function blocklist:** Scans code for blocked functions (`system`, `unix`, `dos`, `!`, `eval`, `feval`, `evalc`, `evalin`, `assignin`, `perl`, `python`). Smart enough to strip string literals and comments first to avoid false positives
 - **Filename sanitization:** Prevents path traversal in upload filenames
 - **Upload size limits:** Enforces `max_upload_size_mb`
 
@@ -112,13 +112,14 @@ Structures tool responses:
 - Success/error response builders
 - Delegates to Plotly converter and thumbnail generator
 
-### Plotly Converter (`output/plotly_convert.py` + `matlab_helpers/mcp_extract_props.m`)
+### Plotly Converter (`output/plotly_convert.py`, `output/plotly_style_mapper.py` + `matlab_helpers/mcp_extract_props.m`)
 
 Converts MATLAB figures to interactive Plotly JSON:
 
 1. MATLAB-side: `mcp_extract_props.m` extracts raw figure properties (line, scatter, bar, histogram, surface, image)
-2. Python-side: `load_plotly_json()` reads the saved JSON file
-3. Result includes: Plotly JSON + static PNG + optional thumbnail
+2. Python-side: `plotly_style_mapper.py` converts MATLAB styles (line styles, markers, colormaps, fonts, colors) to Plotly equivalents, with WebGL support for large datasets (10,000+ points)
+3. Python-side: `plotly_convert.py` / `load_plotly_json()` reads the saved JSON file
+4. Result includes: Plotly JSON + static PNG + optional thumbnail
 
 ## Data Flow
 

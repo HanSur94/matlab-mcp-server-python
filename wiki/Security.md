@@ -12,6 +12,13 @@ By default, these MATLAB functions are blocked:
 | `unix()` | Execute Unix commands |
 | `dos()` | Execute DOS/Windows commands |
 | `!` | Shell escape operator |
+| `eval()` | Execute arbitrary string as code |
+| `feval()` | Call function by name string |
+| `evalc()` | Evaluate and capture output |
+| `evalin()` | Evaluate in caller/base workspace |
+| `assignin()` | Assign variable in caller/base workspace |
+| `perl()` | Execute Perl scripts |
+| `python()` | Execute Python scripts |
 
 ### Smart Scanning
 
@@ -32,14 +39,19 @@ system('rm -rf /')                       % Actual system() call
 ```yaml
 security:
   blocked_functions_enabled: true  # Set false to disable entirely
-  blocked_functions:
+  blocked_functions:       # These are the defaults:
     - "system"
     - "unix"
     - "dos"
     - "!"
-    - "eval"        # Add more as needed
+    - "eval"
     - "feval"
-    - "web"
+    - "evalc"
+    - "evalin"
+    - "assignin"
+    - "perl"
+    - "python"
+    - "web"               # Add more as needed
 ```
 
 ## Workspace Isolation
@@ -59,7 +71,7 @@ This ensures one user's variables, functions, and file handles don't leak to ano
 ## Upload Protection
 
 - **Size limit:** Configurable via `max_upload_size_mb` (default 100MB)
-- **Filename sanitization:** Prevents path traversal attacks (`../../etc/passwd` → `etc_passwd`)
+- **Filename sanitization:** Rejects filenames with path traversal (`../../etc/passwd` is rejected) or characters outside `[a-zA-Z0-9._-]`
 - **Temp directory isolation:** Files are uploaded to session-specific temp directories
 
 ## SSE Transport Security
@@ -93,5 +105,5 @@ The server logs a warning at startup if SSE is enabled without `require_proxy_au
 | Scenario | Recommendations |
 |----------|----------------|
 | **Personal use** | Default config is fine. stdio transport, basic blocklist |
-| **Team server** | SSE + reverse proxy + auth. Consider adding `eval`/`feval` to blocklist |
+| **Team server** | SSE + reverse proxy + auth. Review the default blocklist for your use case |
 | **Production** | SSE + reverse proxy + TLS + auth. `require_proxy_auth: true`. Review blocklist for your use case |
