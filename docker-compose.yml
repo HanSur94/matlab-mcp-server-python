@@ -1,0 +1,22 @@
+services:
+  matlab-mcp:
+    build: .
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./custom_tools.yaml:/app/custom_tools.yaml:ro
+      # Mount your MATLAB installation (adjust path for your system):
+      # - /usr/local/MATLAB/R2024b:/opt/matlab:ro          # Linux
+      # - /Applications/MATLAB_R2024b.app:/opt/matlab:ro    # macOS
+      - results:/app/results
+      - monitoring_data:/app/monitoring
+    environment:
+      - MATLAB_MCP_SERVER_TRANSPORT=sse
+      - MATLAB_MCP_POOL_MAX_ENGINES=4
+      # - MATLAB_MCP_POOL_MATLAB_ROOT=/opt/matlab  # Uncomment when mounting MATLAB
+
+volumes:
+  results:
+  monitoring_data:
