@@ -35,7 +35,14 @@ from matlab_mcp.tools.discovery import (
     list_functions_impl,
     list_toolboxes_impl,
 )
-from matlab_mcp.tools.files import delete_file_impl, list_files_impl, upload_data_impl
+from matlab_mcp.tools.files import (
+    delete_file_impl,
+    list_files_impl,
+    read_data_impl,
+    read_image_impl,
+    read_script_impl,
+    upload_data_impl,
+)
 from matlab_mcp.tools.jobs import (
     cancel_job_impl,
     get_job_result_impl,
@@ -539,6 +546,60 @@ def create_server(config: AppConfig) -> FastMCP:
         session_id = state._get_session_id(ctx)
         temp_dir = state._get_temp_dir(session_id)
         return await list_files_impl(session_temp_dir=temp_dir)
+
+    @mcp.tool
+    async def read_script(ctx: Context, filename: str) -> dict:
+        """Read a MATLAB .m script file from the session's temporary directory.
+
+        Returns the file content as text. Use list_files to see available files.
+        """
+        session_id = state._get_session_id(ctx)
+        temp_dir = state._get_temp_dir(session_id)
+        return await read_script_impl(
+            filename=filename,
+            session_temp_dir=temp_dir,
+            security=state.security,
+            max_inline_text_length=config.output.max_inline_text_length,
+        )
+
+    @mcp.tool
+    async def read_data(
+        ctx: Context,
+        filename: str,
+        format: str = "summary",
+    ) -> dict:
+        """Read a data file (.mat, .csv, .json, .txt, .xlsx) from the session temp directory.
+
+        For .mat files, 'summary' mode shows variable names/sizes/types via MATLAB,
+        'raw' mode returns base64-encoded content. Text files return inline content.
+        """
+        session_id = state._get_session_id(ctx)
+        temp_dir = state._get_temp_dir(session_id)
+        return await read_data_impl(
+            filename=filename,
+            format=format,
+            session_temp_dir=temp_dir,
+            security=state.security,
+            max_size_mb=config.security.max_upload_size_mb,
+            max_inline_text_length=config.output.max_inline_text_length,
+            executor=state.executor,
+            session_id=session_id,
+        )
+
+    @mcp.tool
+    async def read_image(ctx: Context, filename: str):
+        """Read an image file (.png, .jpg, .gif) from the session temp directory.
+
+        Returns the image as an inline content block that renders in agent UIs.
+        """
+        session_id = state._get_session_id(ctx)
+        temp_dir = state._get_temp_dir(session_id)
+        return await read_image_impl(
+            filename=filename,
+            session_temp_dir=temp_dir,
+            security=state.security,
+            max_size_mb=config.security.max_upload_size_mb,
+        )
 
     @mcp.tool
     async def get_pool_status(ctx: Context) -> dict:
