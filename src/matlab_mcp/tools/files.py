@@ -5,13 +5,16 @@ Provides:
 - delete_file_impl   — delete a file from the session temp directory
 - list_files_impl    — list files in the session temp directory
 - read_script_impl   — read a .m script from the session temp directory
+- read_image_impl    — read an image file and return a FastMCP Image object
 """
 from __future__ import annotations
 
 import base64
 import logging
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Union
+
+from fastmcp.utilities.types import Image
 
 logger = logging.getLogger(__name__)
 
@@ -251,3 +254,67 @@ async def read_script_impl(
         result["content"] = content
 
     return result
+
+
+_IMAGE_EXTENSIONS = {
+    ".png": "png",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+}
+
+
+async def read_image_impl(
+    filename: str,
+    session_temp_dir: str,
+    security: Any,
+    max_size_mb: int = _DEFAULT_MAX_SIZE_MB,
+) -> Union[Image, dict]:
+    """Read an image file from the session's temporary directory.
+
+    Parameters
+    ----------
+    filename:
+        Filename to read (basename only; no path separators allowed).
+    session_temp_dir:
+        Path to the session's temporary directory.
+    security:
+        A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+    max_size_mb:
+        Maximum allowed file size in megabytes.
+
+    Returns
+    -------
+    Image | dict
+        A FastMCP :class:`Image` on success, or an error dict on failure.
+    """
+    try:
+        safe_name = security.sanitize_filename(filename)
+    except ValueError as exc:
+        return {"status": "error", "message": f"Invalid filename: {exc}"}
+
+    ext = Path(safe_name).suffix.lower()
+    if ext not in _IMAGE_EXTENSIONS:
+        supported = ", ".join(sorted(_IMAGE_EXTENSIONS))
+        return {
+            "status": "error",
+            "message": f"Unsupported image format '{ext}'. Supported: {supported}",
+        }
+
+    target = Path(session_temp_dir) / safe_name
+    if not target.exists():
+        return {"status": "error", "message": f"File not found: {safe_name}"}
+
+    file_size = target.stat().st_size
+    max_bytes = max_size_mb * 1024 * 1024
+    if file_size > max_bytes:
+        return {
+            "status": "error",
+            "message": (
+                f"File size {file_size} bytes exceeds maximum of "
+                f"{max_size_mb} MB ({max_bytes} bytes)"
+            ),
+        }
+
+    data = target.read_bytes()
+    return Image(data=data, format=_IMAGE_EXTENSIONS[ext])
