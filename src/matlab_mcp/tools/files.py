@@ -1,9 +1,10 @@
 """File management MCP tool implementations.
 
 Provides:
-- upload_data_impl  — upload a file to the session temp directory
-- delete_file_impl  — delete a file from the session temp directory
-- list_files_impl   — list files in the session temp directory
+- upload_data_impl   — upload a file to the session temp directory
+- delete_file_impl   — delete a file from the session temp directory
+- list_files_impl    — list files in the session temp directory
+- read_script_impl   — read a .m script from the session temp directory
 """
 from __future__ import annotations
 
@@ -189,3 +190,64 @@ async def list_files_impl(
         return {"files": [], "count": 0, "error": str(exc)}
 
     return {"files": files, "count": len(files)}
+
+
+async def read_script_impl(
+    filename: str,
+    session_temp_dir: str,
+    security: Any,
+    max_inline_text_length: int = 50000,
+) -> dict:
+    """Read a MATLAB .m script from the session's temporary directory.
+
+    Parameters
+    ----------
+    filename:
+        Filename to read (basename only; no path separators allowed).
+    session_temp_dir:
+        Path to the session's temporary directory.
+    security:
+        A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+    max_inline_text_length:
+        Maximum number of characters to return inline; content beyond this
+        limit is truncated.
+
+    Returns
+    -------
+    dict
+        Result dict with ``status``, ``filename``, ``content``, and optionally
+        ``message`` (when truncated or on error).
+    """
+    # Validate filename
+    try:
+        safe_name = security.sanitize_filename(filename)
+    except ValueError as exc:
+        return {"status": "error", "message": f"Invalid filename: {exc}"}
+
+    # Enforce .m extension
+    if not safe_name.lower().endswith(".m"):
+        return {
+            "status": "error",
+            "message": f"Invalid extension: expected .m file, got '{safe_name}'",
+        }
+
+    target = Path(session_temp_dir) / safe_name
+    if not target.exists():
+        return {"status": "error", "message": f"File not found: {safe_name}"}
+
+    try:
+        content = target.read_text(encoding="utf-8")
+    except Exception as exc:
+        return {"status": "error", "message": f"Failed to read file: {exc}"}
+
+    result: dict = {"status": "ok", "filename": safe_name}
+    if len(content) > max_inline_text_length:
+        result["content"] = content[:max_inline_text_length]
+        result["message"] = (
+            f"Content truncated from {len(content)} to "
+            f"{max_inline_text_length} characters"
+        )
+    else:
+        result["content"] = content
+
+    return result
