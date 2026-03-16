@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from matlab_mcp.pool.engine import EngineState, MatlabEngineWrapper
 

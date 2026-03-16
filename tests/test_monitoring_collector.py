@@ -1,9 +1,7 @@
 """Tests for MetricsCollector."""
 from __future__ import annotations
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
+from unittest.mock import MagicMock, patch
 from matlab_mcp.config import load_config
 
 def _make_config():

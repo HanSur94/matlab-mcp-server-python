@@ -1,11 +1,8 @@
 """Tests for monitoring HTTP routes."""
 from __future__ import annotations
 
-import json
-import time
 from unittest.mock import MagicMock
 
-import pytest
 
 
 def _make_mock_state():

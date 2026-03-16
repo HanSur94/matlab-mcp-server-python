@@ -2,11 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import time
 import types
-import unittest.mock as mock
-from typing import Any
 
 import pytest
 
@@ -230,8 +227,6 @@ class TestEngineStateTransitions:
 
 def _patched_engine_wrapper_factory(pool_cfg, workspace_cfg):
     """Factory that creates engine wrappers pre-patched with mock matlab.engine."""
-    original_make = MatlabEngineWrapper.__init__
-
     class PatchedEngineWrapper(MatlabEngineWrapper):
         def __init__(self, engine_id, pool_config, workspace_config):
             super().__init__(engine_id, pool_config, workspace_config)
@@ -249,7 +244,6 @@ def patched_pool_manager(app_config):
 
     manager = EnginePoolManager(app_config)
     # Monkey-patch _make_engine to produce patched wrappers
-    original_make_engine = manager._make_engine
     def patched_make_engine():
         engine_id = f"engine-{manager._next_id}"
         manager._next_id += 1

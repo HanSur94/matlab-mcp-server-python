@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Python 3.9+**
+- **Python 3.10+**
 - **MATLAB 2020b+** installed locally
 - **MATLAB Engine API for Python** — comes with MATLAB, needs separate install
 

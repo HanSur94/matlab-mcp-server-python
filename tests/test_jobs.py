@@ -1,13 +1,8 @@
 """Tests for the jobs system: models, tracker, and executor."""
 from __future__ import annotations
 
-import asyncio
 import time
-import types
-import unittest.mock as mock
-from typing import Any
 
-import pytest
 
 from matlab_mcp.jobs.models import Job, JobStatus
 from matlab_mcp.jobs.tracker import JobTracker

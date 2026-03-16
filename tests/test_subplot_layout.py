@@ -1,5 +1,4 @@
 """Tests for subplot layout domain computation."""
-import pytest
 
 
 class TestComputeDomains:

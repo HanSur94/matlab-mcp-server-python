@@ -2,7 +2,6 @@
 from __future__ import annotations
 import time
 from unittest.mock import MagicMock
-import pytest
 
 def _make_collector(*, start_time=None, error_total=0, pool_status=None, active_jobs=0, active_sessions=0):
     from matlab_mcp.monitoring.collector import MetricsCollector

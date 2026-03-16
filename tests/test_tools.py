@@ -1,7 +1,6 @@
 """Tests for core MCP tool implementations."""
 from __future__ import annotations
 
-import pytest
 
 from matlab_mcp.config import AppConfig, ExecutionConfig, SecurityConfig
 from matlab_mcp.jobs.executor import JobExecutor

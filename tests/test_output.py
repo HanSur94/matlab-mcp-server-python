@@ -6,7 +6,6 @@ import io
 import json
 from pathlib import Path
 
-import pytest
 
 from matlab_mcp.config import AppConfig, OutputConfig
 

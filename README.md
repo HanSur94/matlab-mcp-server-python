@@ -55,7 +55,7 @@ A Python MCP server that connects **any AI agent** (Claude, Cursor, Copilot, cus
 
 ### Prerequisites
 
-- **Python 3.9+**
+- **Python 3.10+**
 - **MATLAB 2020b+** with the [MATLAB Engine API for Python](https://www.mathworks.com/help/matlab/matlab-engine-for-python.html) installed
 
 ```bash

@@ -10,7 +10,7 @@ import importlib
 import logging
 import time
 from enum import Enum, auto
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

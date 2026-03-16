@@ -1,6 +1,4 @@
 """Tests for the MATLAB-to-Plotly style mapper."""
-import math
-import pytest
 
 
 class TestRgbToCss:

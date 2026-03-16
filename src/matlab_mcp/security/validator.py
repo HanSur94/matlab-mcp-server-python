@@ -101,7 +101,7 @@ class SecurityValidator:
                         if self._collector:
                             self._collector.record_event("blocked_function", {"function": "!"})
                         raise BlockedFunctionError(
-                            f"Shell escape '!' is not allowed"
+                            "Shell escape '!' is not allowed"
                         )
             else:
                 call_re = self._call_patterns[func]

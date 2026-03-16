@@ -1,8 +1,6 @@
 """Fixture-based tests for the full MATLAB->Plotly conversion pipeline."""
-import json
 from pathlib import Path
 
-import pytest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "matlab_figures"
 

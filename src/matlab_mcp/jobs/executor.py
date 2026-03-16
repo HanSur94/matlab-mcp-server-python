@@ -14,11 +14,10 @@ import concurrent.futures
 import io
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any, Optional
 
-from matlab_mcp.jobs.models import Job, JobStatus
+from matlab_mcp.jobs.models import Job
 from matlab_mcp.jobs.tracker import JobTracker
 
 logger = logging.getLogger(__name__)

@@ -109,7 +109,6 @@ class TestMetricsStoreRead:
         from matlab_mcp.monitoring.store import MetricsStore
         store = MetricsStore(str(tmp_path / "metrics.db"))
         await store.initialize()
-        now = datetime.now(timezone.utc)
         for i in range(8):
             await store.insert_event("job_completed", {"job_id": f"j{i}", "execution_ms": 100})
         for i in range(2):

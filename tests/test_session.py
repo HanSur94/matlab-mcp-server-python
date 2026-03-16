@@ -272,7 +272,7 @@ class TestSessionMonitoringEvents:
         from matlab_mcp.config import load_config
         collector = MagicMock()
         manager = SessionManager(load_config(None), collector=collector)
-        session = manager.create_session()
+        manager.create_session()
         collector.record_event.assert_called_once()
         assert collector.record_event.call_args[0][0] == "session_created"
 
