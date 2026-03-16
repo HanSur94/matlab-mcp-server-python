@@ -20,7 +20,6 @@ from matlab_mcp.config import AppConfig, load_config
 from matlab_mcp.jobs.executor import JobExecutor
 from matlab_mcp.jobs.models import JobStatus
 from matlab_mcp.jobs.tracker import JobTracker
-from matlab_mcp.output.formatter import ResultFormatter
 from matlab_mcp.pool.manager import EnginePoolManager
 from matlab_mcp.security.validator import SecurityValidator
 from matlab_mcp.session.manager import SessionManager
@@ -81,7 +80,6 @@ class MatlabMCPServer:
         )
         self.sessions = SessionManager(config, collector=self.collector)
         self.security = SecurityValidator(config.security, collector=self.collector)
-        self.formatter = ResultFormatter(config)
 
     # ------------------------------------------------------------------
     # Session helpers
@@ -112,8 +110,11 @@ class MatlabMCPServer:
         """
         session = self.sessions.get_session(session_id)
         if session is None:
-            # Create session with fixed ID for SSE clients
-            session = self.sessions.get_or_create_default()
+            if self.config.server.transport == "sse":
+                # In SSE mode, create a session keyed to the client's session_id
+                session = self.sessions.create_session(session_id=session_id)
+            else:
+                session = self.sessions.get_or_create_default()
         return session.temp_dir
 
 
@@ -235,7 +236,6 @@ def create_server(config: AppConfig) -> FastMCP:
             while True:
                 try:
                     await asyncio.sleep(interval)
-                    status_before = state.pool.get_status()
                     await state.pool.run_health_checks()
                     status_after = state.pool.get_status()
                     logger.debug("Health check done: engines %d/%d (avail=%d)",

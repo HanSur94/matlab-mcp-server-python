@@ -177,9 +177,9 @@ class JobExecutor:
 
         if temp_dir is not None:
             try:
-                os.environ["MCP_TEMP_DIR"] = str(temp_dir)
+                engine._engine.workspace["__mcp_temp_dir__"] = str(temp_dir)
             except Exception:
-                logger.debug("Could not set MCP_TEMP_DIR env var")
+                logger.debug("Could not inject __mcp_temp_dir__ into workspace")
 
     async def _wait_for_completion(
         self,
@@ -278,7 +278,7 @@ class JobExecutor:
 
                 # Run MATLAB-side figure extraction
                 # Note: MATLAB eval() rejects identifiers starting with __
-                escaped_dir = str(temp_dir).replace("\\", "\\\\").replace("'", "\\'")
+                escaped_dir = str(temp_dir).replace("\\", "\\\\").replace("'", "''")
                 extract_code = (
                     f"mcpFigs_ = findobj(0, 'Type', 'figure'); "
                     f"for mcpIdx_ = 1:length(mcpFigs_), "

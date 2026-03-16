@@ -146,6 +146,8 @@ class MockMatlabEngine:
         code: str,
         nargout: int = 0,
         background: bool = False,
+        stdout: Any = None,
+        stderr: Any = None,
     ) -> Any:
         """Evaluate MATLAB code string.
 
@@ -154,14 +156,16 @@ class MockMatlabEngine:
         code:       MATLAB code to run
         nargout:    number of return values expected (ignored in mock)
         background: if True return a MockFuture; the code runs in a thread
+        stdout:     optional writable stream for captured output
+        stderr:     optional writable stream for captured errors
         """
         if not self._alive:
             raise MatlabExecutionError("Engine is not alive")
 
         if background:
-            fut = _executor.submit(self._execute, code)
+            fut = _executor.submit(self._execute, code, stdout)
             return MockFuture(fut)
-        return self._execute(code)
+        return self._execute(code, stdout)
 
     def addpath(self, path: str) -> None:
         """Add a path to the MATLAB search path."""
@@ -180,7 +184,7 @@ class MockMatlabEngine:
     # Internal execution
     # ------------------------------------------------------------------
 
-    def _execute(self, code: str) -> None:
+    def _execute(self, code: str, stdout: Any = None) -> None:
         """Parse and simulate a limited set of MATLAB code patterns."""
         output_parts: list[str] = []
 
@@ -237,6 +241,8 @@ class MockMatlabEngine:
             # functions we haven't modelled won't raise in the mock)
 
         self._last_output = "\n".join(output_parts)
+        if stdout is not None and output_parts:
+            stdout.write(self._last_output)
 
 
 def start_matlab() -> MockMatlabEngine:

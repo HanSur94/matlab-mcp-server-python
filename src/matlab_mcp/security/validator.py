@@ -17,6 +17,12 @@ class BlockedFunctionError(Exception):
     """Raised when MATLAB code contains a blocked function or construct."""
 
 
+# Precompiled patterns for _strip_string_literals
+_DOUBLE_QUOTED_RE = re.compile(r'"[^"\n]*"')
+_SINGLE_QUOTED_RE = re.compile(r"(?<![a-zA-Z0-9_\)\]])'[^'\n]*'")
+_COMMENT_RE = re.compile(r'%')
+
+
 class SecurityValidator:
     """Validates MATLAB code and filenames against a security policy.
 
@@ -30,6 +36,14 @@ class SecurityValidator:
     def __init__(self, security_config: Any, collector: Any = None) -> None:
         self._config = security_config
         self._collector = collector
+
+        # Precompile blocked-function patterns for check_code hot path
+        self._call_patterns: dict[str, re.Pattern] = {}
+        self._cmd_patterns: dict[str, re.Pattern] = {}
+        for func in security_config.blocked_functions:
+            if func != "!":
+                self._call_patterns[func] = re.compile(rf"\b{re.escape(func)}\s*\(")
+                self._cmd_patterns[func] = re.compile(rf"(?:^|;)\s*{re.escape(func)}\s+\S", re.MULTILINE)
 
     # ------------------------------------------------------------------
     # Code checking
@@ -50,15 +64,9 @@ class SecurityValidator:
         """
         processed_lines = []
         for line in code.splitlines():
-            # Remove double-quoted strings "..."
-            line = re.sub(r'"[^"\n]*"', '""', line)
-            # Remove single-quoted strings '...' (MATLAB char arrays)
-            # A ' preceded by an identifier char or ) is a transpose, skip it.
-            line = re.sub(r"(?<![a-zA-Z0-9_\)\]])'[^'\n]*'", "''", line)
-            # Remove MATLAB line comments: % and everything after
-            # But only if % is not inside a string we just cleared.
-            # Since strings are blanked out, a bare % is definitely a comment.
-            comment_match = re.search(r'%', line)
+            line = _DOUBLE_QUOTED_RE.sub('""', line)
+            line = _SINGLE_QUOTED_RE.sub("''", line)
+            comment_match = _COMMENT_RE.search(line)
             if comment_match:
                 line = line[:comment_match.start()]
             processed_lines.append(line)
@@ -96,11 +104,9 @@ class SecurityValidator:
                             f"Shell escape '!' is not allowed"
                         )
             else:
-                # Match function name as a whole word followed by optional
-                # whitespace and an opening parenthesis, OR just the name
-                # as a standalone command (no parens required for e.g. `system cmd`)
-                pattern = rf"\b{re.escape(func)}\s*\("
-                if re.search(pattern, sanitized):
+                call_re = self._call_patterns[func]
+                cmd_re = self._cmd_patterns[func]
+                if call_re.search(sanitized) or cmd_re.search(sanitized):
                     logger.warning("BLOCKED: function '%s' in code: %s", func, repr(code[:120]))
                     if self._collector:
                         self._collector.record_event("blocked_function", {"function": func})

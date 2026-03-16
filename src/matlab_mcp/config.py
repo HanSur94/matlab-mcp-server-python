@@ -66,7 +66,11 @@ class CustomToolsConfig(BaseModel):
 class SecurityConfig(BaseModel):
     blocked_functions_enabled: bool = True
     blocked_functions: List[str] = Field(
-        default_factory=lambda: ["system", "unix", "dos", "!"]
+        default_factory=lambda: [
+            "system", "unix", "dos", "!",
+            "eval", "feval", "evalc", "evalin", "assignin",
+            "perl", "python",
+        ]
     )
     max_upload_size_mb: int = 100
     require_proxy_auth: bool = False

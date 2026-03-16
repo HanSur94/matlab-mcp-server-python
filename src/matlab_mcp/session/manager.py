@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -74,69 +75,71 @@ class SessionManager:
             base_temp = "/tmp/matlab_mcp"
 
         self._base_temp = Path(base_temp)
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def create_session(self) -> Session:
-        """Create a new session with a unique ID and a temporary directory.
+    def create_session(self, *, session_id: Optional[str] = None) -> Session:
+        """Create a new session with a temporary directory.
+
+        Parameters
+        ----------
+        session_id
+            Optional explicit ID for the session.  When *None* (the default),
+            a random UUID is generated.
 
         Raises
         ------
         RuntimeError
             If the maximum number of sessions has been reached.
         """
-        if len(self._sessions) >= self._max_sessions:
-            raise RuntimeError(
-                f"Maximum number of sessions reached ({self._max_sessions})"
-            )
+        with self._lock:
+            if len(self._sessions) >= self._max_sessions:
+                raise RuntimeError(
+                    f"Maximum number of sessions reached ({self._max_sessions})"
+                )
 
-        session_id = str(uuid.uuid4())
-        temp_dir = self._base_temp / session_id
-        temp_dir.mkdir(parents=True, exist_ok=True)
+            session_id = session_id or str(uuid.uuid4())
+            temp_dir = self._base_temp / session_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
 
-        session = Session(session_id=session_id, temp_dir=str(temp_dir))
-        self._sessions[session_id] = session
-        logger.info("Session created: %s (temp_dir=%s, total=%d/%d)",
-                     session_id[:8], temp_dir, len(self._sessions), self._max_sessions)
-        if self._collector:
-            self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
-        return session
+            session = Session(session_id=session_id, temp_dir=str(temp_dir))
+            self._sessions[session_id] = session
+            logger.info("Session created: %s (temp_dir=%s, total=%d/%d)",
+                         session_id[:8], temp_dir, len(self._sessions), self._max_sessions)
+            if self._collector:
+                self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
+            return session
 
     def get_session(self, session_id: str) -> Optional[Session]:
         """Return the session with the given ID, or None if not found."""
-        return self._sessions.get(session_id)
+        with self._lock:
+            return self._sessions.get(session_id)
 
     def get_or_create_default(self) -> Session:
         """Return (or create) the default session for single-user stdio mode."""
-        session = self._sessions.get(_DEFAULT_SESSION_ID)
-        if session is not None:
-            return session
-
-        # Create with a fixed ID
-        temp_dir = self._base_temp / _DEFAULT_SESSION_ID
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-        session = Session(session_id=_DEFAULT_SESSION_ID, temp_dir=str(temp_dir))
-        self._sessions[_DEFAULT_SESSION_ID] = session
-        logger.info("Default session created (temp_dir=%s)", temp_dir)
-        if self._collector:
-            self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
-        return session
+        with self._lock:
+            session = self._sessions.get(_DEFAULT_SESSION_ID)
+            if session is not None:
+                return session
+        return self.create_session(session_id=_DEFAULT_SESSION_ID)
 
     def destroy_session(self, session_id: str) -> bool:
         """Destroy a session and remove its temporary directory.
 
         Returns True if the session existed and was destroyed, False otherwise.
         """
-        session = self._sessions.pop(session_id, None)
+        with self._lock:
+            session = self._sessions.pop(session_id, None)
+            remaining = len(self._sessions)
         if session is None:
             return False
 
         idle_s = session.idle_seconds
         logger.info("Destroying session %s (idle=%.0fs, remaining=%d)",
-                     session_id[:8], idle_s, len(self._sessions))
+                     session_id[:8], idle_s, remaining)
 
         # Clean up temp directory
         temp_path = Path(session.temp_dir)
@@ -172,10 +175,16 @@ class SessionManager:
         int
             The number of sessions removed.
         """
+        # Collect idle candidates under lock, then check external callback outside
+        # to avoid holding self._lock while calling into JobTracker.
+        with self._lock:
+            candidates = [
+                sid for sid, s in self._sessions.items()
+                if s.idle_seconds >= self._session_timeout
+            ]
+
         to_destroy = []
-        for session_id, session in list(self._sessions.items()):
-            if session.idle_seconds < self._session_timeout:
-                continue
+        for session_id in candidates:
             if has_active_jobs_fn is not None and has_active_jobs_fn(session_id):
                 logger.debug(
                     "Skipping cleanup of session %s — has active jobs", session_id
@@ -197,4 +206,5 @@ class SessionManager:
     @property
     def session_count(self) -> int:
         """Current number of active sessions."""
-        return len(self._sessions)
+        with self._lock:
+            return len(self._sessions)

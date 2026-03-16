@@ -99,7 +99,7 @@ async def check_code_impl(
         tmp_file.write_text(code, encoding="utf-8")
 
         # Build the MATLAB call
-        escaped_path = str(tmp_file).replace("\\", "\\\\").replace("'", "\\'")
+        escaped_path = str(tmp_file).replace("\\", "\\\\").replace("'", "''")
         matlab_cmd = f"mcp_checkcode('{escaped_path}')"
 
         result = await executor.execute(session_id=session_id, code=matlab_cmd)

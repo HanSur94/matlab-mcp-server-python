@@ -129,7 +129,12 @@ class MetricsCollector:
         if self.store is not None:
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self.store.insert_event(event_type, details))
+                def _on_store_done(t: asyncio.Task) -> None:
+                    if not t.cancelled() and t.exception():
+                        logger.warning("Store write failed: %s", t.exception())
+
+                task = loop.create_task(self.store.insert_event(event_type, details))
+                task.add_done_callback(_on_store_done)
             except RuntimeError:
                 # No running event loop — queue for later flush
                 self._pending_events.append((event_type, details))

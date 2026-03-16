@@ -216,7 +216,9 @@ def make_custom_tool_handler(
             val = arguments.get(param.name)
             py_type = _TYPE_MAP.get(param.type.lower(), str)
             if py_type in (str,):
-                matlab_args.append(f"'{val}'")
+                # Escape single quotes to prevent MATLAB injection
+                safe_val = str(val).replace("'", "''")
+                matlab_args.append(f"'{safe_val}'")
             elif py_type in (int, float):
                 matlab_args.append(str(val))
             elif py_type is bool:

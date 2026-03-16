@@ -8,9 +8,28 @@ Provides:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Optional
 
+# Valid MATLAB identifier or toolbox name: alphanumeric, underscores, dots, slashes
+_SAFE_NAME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9_./ ]*$')
+
 logger = logging.getLogger(__name__)
+
+
+def _validate_matlab_name(name: str, label: str) -> tuple[Optional[str], Optional[dict]]:
+    """Sanitize and validate a MATLAB name for use in ``help`` commands.
+
+    Returns ``(safe_name, None)`` on success or ``(None, error_dict)`` on failure.
+    """
+    safe = name.replace("'", "").replace('"', "").strip()
+    if not _SAFE_NAME_RE.match(safe):
+        return None, {
+            label: name,
+            "status": "failed",
+            "error": f"Invalid {label}: must contain only alphanumeric characters, underscores, dots, slashes, and spaces",
+        }
+    return safe, None
 
 
 async def list_toolboxes_impl(
@@ -71,8 +90,9 @@ async def list_functions_impl(
     dict
         Result dict with the help text for the toolbox.
     """
-    # Sanitize toolbox_name to prevent injection
-    safe_name = toolbox_name.replace("'", "").replace('"', "").strip()
+    safe_name, err = _validate_matlab_name(toolbox_name, "toolbox_name")
+    if err is not None:
+        return err
     matlab_cmd = f"help {safe_name}"
     result = await executor.execute(session_id=session_id, code=matlab_cmd)
     return {
@@ -104,8 +124,9 @@ async def get_help_impl(
     dict
         Result dict with the help text.
     """
-    # Sanitize to prevent injection
-    safe_name = function_name.replace("'", "").replace('"', "").strip()
+    safe_name, err = _validate_matlab_name(function_name, "function_name")
+    if err is not None:
+        return err
     matlab_cmd = f"help {safe_name}"
     result = await executor.execute(session_id=session_id, code=matlab_cmd)
     return {
