@@ -1,0 +1,48 @@
+name: Generate Docs
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate MCP Tools Reference
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/generate_docs.py
+
+      - name: Push to wiki
+        env:
+          WIKI_PAT: ${{ secrets.WIKI_PAT }}
+        run: |
+          # Clone wiki repo
+          git clone https://x-access-token:${WIKI_PAT}@github.com/HanSur94/matlab-mcp-server-python.wiki.git /tmp/wiki
+
+          # Copy generated file
+          cp wiki/MCP-Tools-Reference.md /tmp/wiki/MCP-Tools-Reference.md
+
+          # Check for changes (status --porcelain catches new/untracked files too)
+          cd /tmp/wiki
+          [ -z "$(git status --porcelain)" ] && echo "No changes to wiki" && exit 0
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add MCP-Tools-Reference.md
+          git commit -m "docs: auto-update MCP Tools Reference"
+          git push
