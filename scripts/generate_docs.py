@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Extract MCP tool metadata from server.py and generate wiki docs via Claude API.
+"""Generate all wiki pages for matlab-mcp-server using Claude API.
 
-Parses @mcp.tool-decorated functions in src/matlab_mcp/server.py using the AST
-module, then sends the extracted metadata to Claude Haiku to generate a comprehensive
-MCP Tools Reference markdown document.
+For each wiki page, reads relevant source files + the existing page as seed,
+then calls Claude Haiku to produce an updated version. MCP-Tools-Reference
+uses AST extraction for structured metadata; all other pages use raw source
+file context.
 
 Usage:
     ANTHROPIC_API_KEY=sk-... python scripts/generate_docs.py
 
 Output:
-    wiki/MCP-Tools-Reference.md
+    wiki/*.md (11 pages)
 """
 from __future__ import annotations
 
@@ -20,11 +21,167 @@ import sys
 import time
 from pathlib import Path
 
-SERVER_PY = Path("src/matlab_mcp/server.py")
-WIKI_OUTPUT = Path("wiki/MCP-Tools-Reference.md")
 MODEL = "claude-haiku-4-5"
 MAX_RETRIES = 2
 TIMEOUT = 60
+WIKI_DIR = Path("wiki")
+
+# ---------------------------------------------------------------------------
+# Page definitions: wiki page name -> (source files with truncation limits, prompt)
+# ---------------------------------------------------------------------------
+
+PAGES: dict[str, dict] = {
+    "Home": {
+        "sources": [("README.md", 12000), ("pyproject.toml", 4000)],
+        "prompt": (
+            "Update this Home page for the matlab-mcp-server wiki. "
+            "It should be a concise overview: what the project does, key features, "
+            "links to other wiki pages, and a quick-start snippet. "
+            "Keep it welcoming and scannable."
+        ),
+    },
+    "Installation": {
+        "sources": [
+            ("README.md", 12000),
+            ("pyproject.toml", 4000),
+            ("Dockerfile", 4000),
+            ("docker-compose.yml", 4000),
+        ],
+        "prompt": (
+            "Update this Installation page. Cover: pip install, from source, "
+            "Docker (Dockerfile + docker-compose), Python version requirements, "
+            "and MATLAB engine setup. Use the source files for accurate commands and versions."
+        ),
+    },
+    "Configuration": {
+        "sources": [("config.yaml", 8000), ("src/matlab_mcp/config.py", 8000)],
+        "prompt": (
+            "Update this Configuration page. Document all config sections, "
+            "their fields, defaults, and types. Use the Pydantic models in config.py "
+            "and the example config.yaml as the source of truth. Include environment "
+            "variable override syntax (MATLAB_MCP_<SECTION>_<KEY>)."
+        ),
+    },
+    "Architecture": {
+        "sources": [
+            ("src/matlab_mcp/server.py", 6000),
+            ("src/matlab_mcp/pool/manager.py", 6000),
+            ("src/matlab_mcp/pool/engine.py", 6000),
+            ("src/matlab_mcp/jobs/executor.py", 6000),
+            ("src/matlab_mcp/session/manager.py", 6000),
+            ("src/matlab_mcp/output/formatter.py", 6000),
+        ],
+        "prompt": (
+            "Update this Architecture page. Describe the system components: "
+            "server entry point, engine pool, job executor, session manager, "
+            "output formatter, security validator, monitoring. Show how they "
+            "connect. Use the source code to verify component relationships."
+        ),
+    },
+    "MCP-Tools-Reference": {
+        "sources": [],  # Special case: uses AST extraction
+        "prompt": "",  # Has its own prompt in generate_tools_reference()
+    },
+    "Async-Jobs": {
+        "sources": [
+            ("src/matlab_mcp/jobs/executor.py", 6000),
+            ("src/matlab_mcp/jobs/models.py", 6000),
+            ("src/matlab_mcp/jobs/tracker.py", 6000),
+        ],
+        "prompt": (
+            "Update this Async Jobs page. Document the job lifecycle: "
+            "sync execution, async promotion (when sync_timeout is exceeded), "
+            "job status polling, progress reporting via mcp_progress.m, "
+            "job result retrieval, cancellation, and retention/cleanup."
+        ),
+    },
+    "Custom-Tools": {
+        "sources": [
+            ("custom_tools.yaml", 4000),
+            ("examples/custom_tools.yaml", 4000),
+            ("src/matlab_mcp/tools/custom.py", 4000),
+        ],
+        "prompt": (
+            "Update this Custom Tools page. Document how to define custom "
+            "MATLAB functions as MCP tools via custom_tools.yaml. Cover the "
+            "YAML schema (name, description, parameters, code), examples, "
+            "and how they are loaded and registered at startup."
+        ),
+    },
+    "Security": {
+        "sources": [
+            ("src/matlab_mcp/security/validator.py", 6000),
+            ("config.yaml", 4000),
+        ],
+        "prompt": (
+            "Update this Security page. Document: blocked functions list, "
+            "filename sanitization, upload size limits, proxy auth, "
+            "workspace isolation, and security best practices."
+        ),
+    },
+    "Examples": {
+        "sources": [
+            ("examples/basic_usage.m", 4000),
+            ("examples/async_simulation.m", 4000),
+            ("examples/plotting_examples.m", 4000),
+            ("examples/signal_processing.m", 4000),
+        ],
+        "prompt": (
+            "Update this Examples page. Show practical usage examples: "
+            "basic MATLAB execution, async simulations, plotting with Plotly "
+            "conversion, signal processing. Use the actual .m files as the "
+            "source of truth for code snippets."
+        ),
+    },
+    "FAQ": {
+        "sources": [("README.md", 12000)],
+        "prompt": (
+            "Update this FAQ page. Answer common questions about: "
+            "supported MATLAB versions, MCP client compatibility, "
+            "Docker usage, troubleshooting, performance, and security."
+        ),
+    },
+    "Troubleshooting": {
+        "sources": [("README.md", 12000), ("config.yaml", 4000)],
+        "prompt": (
+            "Update this Troubleshooting page. Cover common issues: "
+            "MATLAB engine connection failures, pool startup problems, "
+            "timeout tuning, logging configuration, Docker networking, "
+            "and how to enable debug logging."
+        ),
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Source file reading
+# ---------------------------------------------------------------------------
+
+
+def read_source_file(path: str, max_chars: int) -> str | None:
+    """Read a source file, truncated to max_chars. Returns None if missing."""
+    p = Path(path)
+    if not p.exists():
+        print(f"  WARNING: Source file not found: {path}", file=sys.stderr)
+        return None
+    content = p.read_text()
+    if len(content) > max_chars:
+        content = content[:max_chars] + f"\n\n... (truncated at {max_chars} chars)"
+    return content
+
+
+def read_sources(sources: list[tuple[str, int]]) -> str:
+    """Read all source files for a page, formatted as labeled sections."""
+    parts: list[str] = []
+    for path, max_chars in sources:
+        content = read_source_file(path, max_chars)
+        if content:
+            parts.append(f"### File: {path}\n```\n{content}\n```")
+    return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# AST extraction for MCP-Tools-Reference (preserved from original)
+# ---------------------------------------------------------------------------
 
 
 def extract_tools(source: str) -> list[dict]:
@@ -36,7 +193,6 @@ def extract_tools(source: str) -> list[dict]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
 
-        # Check for @mcp.tool decorator (bare or call form)
         is_tool = False
         for dec in node.decorator_list:
             if isinstance(dec, ast.Attribute) and dec.attr == "tool":
@@ -52,21 +208,16 @@ def extract_tools(source: str) -> list[dict]:
         if not is_tool:
             continue
 
-        # Extract docstring
         docstring = ast.get_docstring(node) or ""
 
-        # Extract parameters (skip 'ctx' which is the MCP context)
         params: list[dict] = []
         for arg in node.args.args:
             name = arg.arg
             if name in ("self", "ctx"):
                 continue
-
-            # Get type annotation
             type_str = ""
             if arg.annotation:
                 type_str = ast.unparse(arg.annotation)
-
             params.append({
                 "name": name,
                 "type": type_str,
@@ -74,7 +225,6 @@ def extract_tools(source: str) -> list[dict]:
                 "default": None,
             })
 
-        # Check for defaults (aligned from the end)
         defaults = node.args.defaults
         if defaults:
             non_ctx_args = [a for a in node.args.args if a.arg not in ("self", "ctx")]
@@ -88,7 +238,6 @@ def extract_tools(source: str) -> list[dict]:
                     except (ValueError, TypeError):
                         params[idx]["default"] = ast.unparse(default)
 
-        # Get return type
         return_type = ""
         if node.returns:
             return_type = ast.unparse(node.returns)
@@ -110,7 +259,10 @@ def categorize_tools(tools: list[dict]) -> dict[str, list[dict]]:
         "Execution & Workspace": ["execute_code", "check_code", "get_workspace"],
         "Job Management": ["get_job_status", "get_job_result", "cancel_job", "list_jobs"],
         "Discovery": ["list_toolboxes", "list_functions", "get_help"],
-        "File Operations": ["upload_data", "delete_file", "list_files", "read_script", "read_data", "read_image"],
+        "File Operations": [
+            "upload_data", "delete_file", "list_files",
+            "read_script", "read_data", "read_image",
+        ],
         "Admin": ["get_pool_status"],
         "Monitoring": ["get_server_metrics", "get_server_health", "get_error_log"],
     }
@@ -123,7 +275,6 @@ def categorize_tools(tools: list[dict]) -> dict[str, list[dict]]:
         if cat_tools:
             result[category] = cat_tools
 
-    # Any uncategorized tools
     categorized = {n for names in categories.values() for n in names}
     uncategorized = [t for t in tools if t["name"] not in categorized]
     if uncategorized:
@@ -132,8 +283,15 @@ def categorize_tools(tools: list[dict]) -> dict[str, list[dict]]:
     return result
 
 
-def generate_docs_via_api(categorized: dict[str, list[dict]], style_ref: str) -> str:
-    """Call Claude API to generate the MCP Tools Reference markdown."""
+# ---------------------------------------------------------------------------
+# API call
+# ---------------------------------------------------------------------------
+
+REFUSAL_PREFIXES = ("I'm sorry", "I cannot", "I apologize", "Sorry,")
+
+
+def get_client():
+    """Create and return an Anthropic client."""
     try:
         import anthropic
     except ImportError:
@@ -145,7 +303,61 @@ def generate_docs_via_api(categorized: dict[str, list[dict]], style_ref: str) ->
         print("ERROR: ANTHROPIC_API_KEY environment variable not set", file=sys.stderr)
         sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=api_key, timeout=TIMEOUT)
+    return anthropic.Anthropic(api_key=api_key, timeout=TIMEOUT)
+
+
+def call_api(client, prompt: str, max_tokens: int = 8000) -> str | None:
+    """Call Claude API with retry logic. Returns None on failure."""
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            response = client.messages.create(
+                model=MODEL,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text
+
+            # Validate output
+            if not text or not text.strip():
+                print("  WARNING: API returned empty output", file=sys.stderr)
+                return None
+            if text.lstrip().startswith(REFUSAL_PREFIXES):
+                print(f"  WARNING: API returned refusal: {text[:80]}...", file=sys.stderr)
+                return None
+
+            return text
+        except Exception as e:
+            if attempt < MAX_RETRIES:
+                wait = 2 ** (attempt + 1)
+                print(f"  API call failed ({e}), retrying in {wait}s...", file=sys.stderr)
+                time.sleep(wait)
+            else:
+                print(f"  ERROR: API call failed after {MAX_RETRIES + 1} attempts: {e}", file=sys.stderr)
+                return None
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Page generators
+# ---------------------------------------------------------------------------
+
+
+def generate_tools_reference(client) -> str | None:
+    """Generate MCP-Tools-Reference using AST extraction (special case)."""
+    server_py = Path("src/matlab_mcp/server.py")
+    if not server_py.exists():
+        print(f"  ERROR: {server_py} not found", file=sys.stderr)
+        return None
+
+    source = server_py.read_text()
+    tools = extract_tools(source)
+    print(f"  Extracted {len(tools)} MCP tools via AST")
+    categorized = categorize_tools(tools)
+
+    style_ref = ""
+    wiki_file = WIKI_DIR / "MCP-Tools-Reference.md"
+    if wiki_file.exists():
+        style_ref = wiki_file.read_text()
 
     prompt = f"""Generate a comprehensive MCP Tools Reference in markdown for the matlab-mcp-server.
 
@@ -160,8 +372,7 @@ Here is the existing reference document for style guidance:
 ```
 
 Requirements:
-- Start with: "# MCP Tools Reference\\n\\nThe server exposes {{N}} built-in tools plus any custom tools defined in your `custom_tools.yaml`."
-- Replace {{N}} with the actual count of tools in the metadata.
+- Start with: "# MCP Tools Reference\\n\\nThe server exposes {len(tools)} built-in tools plus any custom tools defined in your `custom_tools.yaml`."
 - Group tools by category using ## headings (use the category names from the JSON).
 - For each tool use ### heading with the tool name in backticks.
 - For each tool include:
@@ -173,52 +384,83 @@ Requirements:
 - Add a final section "## Custom Tools" noting that custom tools are configured via `custom_tools.yaml` and are dynamically registered at runtime.
 - Output ONLY the markdown content, no surrounding explanation.
 """
+    return call_api(client, prompt)
 
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return response.content[0].text
-        except Exception as e:
-            if attempt < MAX_RETRIES:
-                wait = 2 ** (attempt + 1)
-                print(f"API call failed ({e}), retrying in {wait}s...", file=sys.stderr)
-                time.sleep(wait)
-            else:
-                print(f"ERROR: API call failed after {MAX_RETRIES + 1} attempts: {e}", file=sys.stderr)
-                sys.exit(1)
-    # Unreachable but satisfies type checker
-    sys.exit(1)
+
+def generate_generic_page(client, page_name: str, page_def: dict) -> str | None:
+    """Generate a wiki page using source files as context."""
+    source_context = read_sources(page_def["sources"])
+    if not source_context:
+        print(f"  WARNING: No source files available for {page_name}", file=sys.stderr)
+        return None
+
+    existing = ""
+    wiki_file = WIKI_DIR / f"{page_name}.md"
+    if wiki_file.exists():
+        existing = wiki_file.read_text()
+
+    prompt = f"""{page_def['prompt']}
+
+Keep the existing structure and tone. Update content to match the current source code.
+Do not remove sections unless the feature no longer exists.
+Add new sections if the source code reveals undocumented features.
+Output ONLY the updated markdown, no surrounding explanation.
+
+## Existing page content:
+```markdown
+{existing[:8000]}
+```
+
+## Source code context:
+{source_context}
+"""
+    return call_api(client, prompt)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    if not SERVER_PY.exists():
-        print(f"ERROR: {SERVER_PY} not found. Run from repo root.", file=sys.stderr)
+    client = get_client()
+
+    WIKI_DIR.mkdir(parents=True, exist_ok=True)
+    failed_pages: list[str] = []
+    updated_pages: list[str] = []
+
+    for page_name, page_def in PAGES.items():
+        print(f"\n{'='*60}")
+        print(f"Generating: {page_name}")
+        print(f"{'='*60}")
+
+        # Special case for MCP-Tools-Reference
+        if page_name == "MCP-Tools-Reference":
+            result = generate_tools_reference(client)
+        else:
+            result = generate_generic_page(client, page_name, page_def)
+
+        if result is None:
+            print(f"  FAILED: {page_name}")
+            failed_pages.append(page_name)
+            continue
+
+        output_path = WIKI_DIR / f"{page_name}.md"
+        output_path.write_text(result)
+        updated_pages.append(page_name)
+        print(f"  OK: Written {len(result)} chars to {output_path}")
+
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"Summary: {len(updated_pages)} updated, {len(failed_pages)} failed")
+    if updated_pages:
+        print(f"  Updated: {', '.join(updated_pages)}")
+    if failed_pages:
+        print(f"  Failed:  {', '.join(failed_pages)}")
+    print(f"{'='*60}")
+
+    if failed_pages:
         sys.exit(1)
-
-    print(f"Parsing {SERVER_PY}...")
-    source = SERVER_PY.read_text()
-    tools = extract_tools(source)
-    print(f"Found {len(tools)} MCP tools: {[t['name'] for t in tools]}")
-
-    categorized = categorize_tools(tools)
-    print(f"Categories: {list(categorized.keys())}")
-
-    # Read existing style reference
-    style_ref = ""
-    if WIKI_OUTPUT.exists():
-        style_ref = WIKI_OUTPUT.read_text()
-        print(f"Loaded style reference from {WIKI_OUTPUT} ({len(style_ref)} chars)")
-
-    print(f"Calling Claude API ({MODEL})...")
-    markdown = generate_docs_via_api(categorized, style_ref)
-
-    WIKI_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    WIKI_OUTPUT.write_text(markdown)
-    print(f"Written {len(markdown)} chars to {WIKI_OUTPUT}")
 
 
 if __name__ == "__main__":
