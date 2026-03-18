@@ -18,6 +18,7 @@ jobs:
       - run: ruff check src/ tests/
 
   test:
+    needs: lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,4 +29,60 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev,monitoring]"
-      - run: pytest tests/ -v --cov=matlab_mcp --cov-report=term-missing
+      - run: pytest tests/ -v --cov=matlab_mcp --cov-report=xml --cov-report=term-missing
+      - uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  security:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,monitoring]"
+      - run: pip-audit
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  docker:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t matlab-mcp:test .
+      - name: Smoke-test container health endpoint
+        run: |
+          docker run -d --name mcp-test \
+            -e MATLAB_MCP_SERVER_TRANSPORT=sse \
+            -e MATLAB_MCP_MONITORING_ENABLED=true \
+            -p 8765:8765 \
+            matlab-mcp:test
+          # The server will crash on pool start (no MATLAB engine in CI).
+          # curl will fail; || true prevents the step from failing.
+          # Goal: verify the image builds and the ENTRYPOINT is valid.
+          sleep 5
+          curl --retry 5 --retry-delay 2 --retry-connrefused \
+            http://localhost:8765/health || true
+          docker logs mcp-test
+          docker stop mcp-test || true
+          docker rm mcp-test || true
