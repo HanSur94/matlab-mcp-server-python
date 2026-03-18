@@ -49,13 +49,16 @@ Four separate workflow files, each with a clear responsibility:
 
 #### 5. docker
 - **Runner:** ubuntu-latest
-- **Steps:** `docker build -t matlab-mcp:test .`, run container, wait for health check to pass, stop container
-- **Needs:** build
+- **Steps:** `docker build -t matlab-mcp:test .`, run container with `MATLAB_MCP_MONITORING_ENABLED=true` and `MATLAB_MCP_SERVER_TRANSPORT=sse`, wait for health check (`curl --retry 10 --retry-delay 3 --retry-connrefused http://localhost:8765/health`), stop container
+- **Needs:** lint (runs in parallel with test to reduce wall-clock time)
 
 ## Workflow 2: Docs Generation (`docs.yml`)
 
 ### Trigger
 - Push to `master`
+
+### Concurrency
+`concurrency: { group: docs-${{ github.ref }}, cancel-in-progress: true }` — prevents parallel doc generation from rapid pushes.
 
 ### Job: generate-docs
 
@@ -69,15 +72,15 @@ Four separate workflow files, each with a clear responsibility:
 5. Copy generated `wiki/MCP-Tools-Reference.md` to wiki repo
 6. If diff exists, commit and push to wiki repo
 
-**Wiki push authentication:** Uses `GITHUB_TOKEN` (automatic) or a PAT if wiki push requires separate permissions.
+**Wiki push authentication:** Requires a Personal Access Token (PAT) with `repo` scope stored as `WIKI_PAT` secret. `GITHUB_TOKEN` cannot push to the wiki repo (it's a separate git repository). The PAT is used as the git credential when cloning and pushing to the wiki repo.
 
 ### Script: `scripts/generate_docs.py`
 
 **Purpose:** Extract MCP tool metadata from source code and generate comprehensive tool reference documentation via Claude API.
 
 **Process:**
-1. **AST Parsing:** Use Python's `ast` module to parse all files in `src/matlab_mcp/tools/`:
-   - `core.py`, `jobs.py`, `discovery.py`, `files.py`, `admin.py`, `monitoring.py`
+1. **AST Parsing:** Use Python's `ast` module to parse `src/matlab_mcp/server.py` for functions decorated with `@mcp.tool`. These wrapper functions define the actual MCP-visible tool names, docstrings, and parameter signatures exposed to clients. Do NOT parse the `_impl` functions in `tools/*.py` — those contain internal parameters (executor, tracker, session_id, etc.) that are not visible to MCP clients.
+   - **Excluded:** Custom tools (registered dynamically from YAML at runtime). The generated docs will note that custom tools are configured via `custom_tools.yaml`.
    - Extract: function name, decorator info, docstring, parameters (name, type annotation, default), return type
 2. **Build payload:** Structure extracted metadata as JSON with tool categories:
    - Execution & Workspace (execute_code, check_code, get_workspace)
@@ -86,16 +89,16 @@ Four separate workflow files, each with a clear responsibility:
    - File Operations (upload_data, read_script, read_data, read_image, delete_file, list_files)
    - Admin (get_pool_status)
    - Monitoring (get_server_metrics, get_server_health, get_error_log)
-3. **Read existing content:** Load current `wiki/MCP-Tools-Reference.md` as style reference
-4. **Call Claude API:** Send metadata + style reference to `claude-haiku-4-5-20251001` with prompt:
+3. **Read existing content:** Load `wiki/MCP-Tools-Reference.md` from the main repo checkout as style reference (not from the wiki clone)
+4. **Call Claude API:** Send metadata + style reference to `claude-haiku-4-5` with prompt:
    - "Generate a comprehensive MCP Tools Reference in markdown for the matlab-mcp-server"
    - "For each tool: name, description, parameters table (name, type, required, default, description), return value description, usage example"
    - "Group tools by category. Match the style of the existing reference."
 5. **Write output:** Save to `wiki/MCP-Tools-Reference.md`
 
-**Model choice:** `claude-haiku-4-5-20251001` — cost-efficient for structured data transformation. Tool reference generation is a well-constrained task that doesn't require Opus-level reasoning.
+**Model choice:** `claude-haiku-4-5` — cost-efficient for structured data transformation. Tool reference generation is a well-constrained task that doesn't require Opus-level reasoning.
 
-**Error handling:** If API call fails, the workflow fails (no partial writes). Retry up to 2 times with backoff.
+**Error handling:** If API call fails, the workflow fails (no partial writes). Retry up to 2 times with backoff. API client timeout set to 60 seconds to prevent hung calls from consuming runner minutes.
 
 ## Workflow 3: Release Pipeline (`release.yml`)
 
@@ -104,24 +107,25 @@ Four separate workflow files, each with a clear responsibility:
 
 ### Job: draft-release
 
+**Permissions:** `contents: write` (required for `gh release create`)
+
 **Runner:** ubuntu-latest, Python 3.12
 
 **Steps:**
 1. Checkout with full history (`fetch-depth: 0`)
-2. Install `anthropic` SDK
+2. Install `anthropic` SDK + `build` package (`pip install anthropic build`)
 3. Run `scripts/generate_changelog.py` — outputs changelog to `CHANGELOG.md` (temp)
 4. Build wheel + sdist with `python -m build`
-5. Create draft GitHub release via `gh release create $TAG --draft --title "$TAG" --notes-file CHANGELOG.md`
-6. Attach `dist/*` artifacts to the release
+5. Create draft GitHub release with artifacts: `gh release create $TAG --draft --title "$TAG" --notes-file CHANGELOG.md dist/*`
 
 ### Script: `scripts/generate_changelog.py`
 
 **Purpose:** Generate human-readable release notes from git history using Claude API.
 
 **Process:**
-1. **Get commits:** `git log <prev_tag>..HEAD --format="%H|%s|%an|%ad"` where `<prev_tag>` is the most recent previous tag
-2. **Parse commits:** Group by conventional commit prefix (feat, fix, docs, ci, refactor, test, chore)
-3. **Call Claude API:** Send parsed commits to `claude-haiku-4-5-20251001` with prompt:
+1. **Get commits:** Find the most recent previous tag via `git tag --sort=-creatordate`. If tags exist, run `git log <prev_tag>..HEAD --format="%H|%s|%an|%ad"`. If no previous tags exist (first release), fall back to `git log HEAD --format="%H|%s|%an|%ad"` to include all commits.
+2. **Parse commits:** Group by conventional commit prefix (feat, fix, docs, ci, refactor, test, chore). Truncate individual commit messages to 500 characters to prevent oversized API payloads.
+3. **Call Claude API:** Send parsed commits to `claude-haiku-4-5` (timeout: 60s) with prompt:
    - "Write concise release notes from these commits"
    - "Sections: Highlights (1-2 sentence summary), New Features, Bug Fixes, Documentation, Other Changes"
    - "Use bullet points, be concise, focus on user impact"
@@ -162,14 +166,15 @@ Existing badges will be deduplicated — no duplicates.
 |------|---------|
 | `.github/workflows/ci.yml` | Add security, build, docker, codecov jobs |
 | `README.md` | Add/update badges |
-| `pyproject.toml` | Add `pip-audit` and `build` to dev dependencies |
+| `pyproject.toml` | Add `pip-audit` and `build` to dev dependencies; fix ruff `target-version` from `py39` to `py310` to match `requires-python` |
 
 ## Secrets Required
 
 | Secret | Purpose | Where to set |
 |--------|---------|--------------|
 | `ANTHROPIC_API_KEY` | Claude API for docs + changelog | GitHub repo settings → Secrets |
-| `CODECOV_TOKEN` | Coverage upload | GitHub repo settings → Secrets (may be optional for public repos) |
+| `WIKI_PAT` | PAT with `public_repo` scope for pushing to wiki repo (use `repo` scope if private) | GitHub repo settings → Secrets |
+| `CODECOV_TOKEN` | Coverage upload (required for Codecov v4 action) | GitHub repo settings → Secrets |
 
 ## Cost Considerations
 
