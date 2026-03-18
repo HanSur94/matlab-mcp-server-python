@@ -23,6 +23,12 @@
   <a href="https://pypi.org/project/matlab-mcp-python/">
     <img src="https://img.shields.io/pypi/pyversions/matlab-mcp-python" alt="Python">
   </a>
+  <a href="https://codecov.io/gh/HanSur94/matlab-mcp-server-python">
+    <img src="https://codecov.io/gh/HanSur94/matlab-mcp-server-python/branch/master/graph/badge.svg" alt="codecov">
+  </a>
+  <a href="https://github.com/HanSur94/matlab-mcp-server-python/blob/master/LICENSE">
+    <img src="https://img.shields.io/github/license/HanSur94/matlab-mcp-server-python" alt="License">
+  </a>
 </p>
 
 ---
