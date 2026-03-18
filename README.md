@@ -57,6 +57,28 @@ A Python MCP server that connects **any AI agent** (Claude, Cursor, Copilot, cus
 | Progress reporting | Long jobs report percentage back to the agent |
 | Cross-platform | Windows + macOS, MATLAB 2020b+ |
 
+## MATLAB Plot Conversion to Interactive Plotly
+
+Every MATLAB figure is automatically converted into an interactive [Plotly](https://plotly.com/javascript/) chart — no extra code needed. When your MATLAB code creates a plot, the server:
+
+1. **Extracts figure properties** via `mcp_extract_props.m` — axes, line data, labels, colors, markers, legends, subplots
+2. **Maps MATLAB styles to Plotly** — line styles (`--` → `dash`), markers (`o` → `circle`), legend positions, axis scales, colormaps
+3. **Returns interactive JSON** — renderable in any web UI with `Plotly.newPlot()`
+4. **Generates a static PNG + thumbnail** as fallback for non-interactive clients
+
+**Supported plot types:** line, scatter, bar, area, subplots (`subplot`/`tiledlayout`), multiple axes, log/linear scales
+
+**Style fidelity:** Line styles, marker shapes, colors (RGB), line widths, font sizes, axis labels, titles, legends, grid lines, axis limits, and background colors are all preserved.
+
+```matlab
+% This MATLAB code...
+x = linspace(0, 2*pi, 100);
+subplot(2,1,1); plot(x, sin(x), 'r--', 'LineWidth', 2); title('Sine');
+subplot(2,1,2); plot(x, cos(x), 'b-.o'); title('Cosine');
+```
+
+...returns interactive Plotly JSON with both subplots, red dashed lines, blue dash-dot with circle markers, titles, and layout — all automatically.
+
 ## Quick Start
 
 ### Prerequisites
