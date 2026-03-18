@@ -72,12 +72,20 @@ Every MATLAB figure is automatically converted into an interactive [Plotly](http
 
 ```matlab
 % This MATLAB code...
-x = linspace(0, 2*pi, 100);
-subplot(2,1,1); plot(x, sin(x), 'r--', 'LineWidth', 2); title('Sine');
-subplot(2,1,2); plot(x, cos(x), 'b-.o'); title('Cosine');
+x = linspace(0, 2*pi, 200);
+plot(x, sin(x), 'r-', 'LineWidth', 2); hold on;
+plot(x, cos(x), 'b--', 'LineWidth', 2);
+plot(x, sin(x) .* cos(x), 'g-.', 'LineWidth', 2);
+legend('sin(x)', 'cos(x)', 'sin(x)*cos(x)');
+xlabel('x'); ylabel('y');
+title('Trigonometric Functions');
 ```
 
-...returns interactive Plotly JSON with both subplots, red dashed lines, blue dash-dot with circle markers, titles, and layout — all automatically.
+...automatically becomes this interactive Plotly chart:
+
+![MATLAB to Plotly Conversion](docs/images/plotly-trig-functions.png)
+
+Line styles, colors, markers, legends, and axis labels are all preserved in the conversion.
 
 ## Quick Start
 
