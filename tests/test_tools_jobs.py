@@ -13,7 +13,7 @@ from __future__ import annotations
 from concurrent.futures import Future
 from unittest.mock import MagicMock
 
-from matlab_mcp.jobs.models import Job, JobStatus
+from matlab_mcp.jobs.models import JobStatus
 from matlab_mcp.jobs.tracker import JobTracker
 from matlab_mcp.tools.jobs import (
     cancel_job_impl,
@@ -532,7 +532,7 @@ class TestListJobsMultiple:
 
     async def test_mixed_statuses_listed(self):
         tracker = JobTracker()
-        j_pending = tracker.create_job("s1", "a = 1;")
+        tracker.create_job("s1", "a = 1;")
         j_running = tracker.create_job("s1", "b = 2;")
         j_running.mark_running("engine-0")
         j_completed = tracker.create_job("s1", "c = 3;")

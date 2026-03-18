@@ -28,7 +28,6 @@ Targets uncovered lines in store.py:
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -862,7 +861,6 @@ class TestStoreExceptionPaths:
         store = MetricsStore(str(tmp_path / "metrics.db"))
         await store.initialize()
         # Monkey-patch db.close to raise
-        original_close = store._db.close
         store._db.close = AsyncMock(side_effect=RuntimeError("close failed"))
         await store.close()
         assert store._db is None  # should still be cleaned up

@@ -23,8 +23,7 @@ import pytest
 _matlab_pkg = types.ModuleType("matlab")
 _engine_mod = types.ModuleType("matlab.engine")
 
-from tests.mocks.matlab_engine_mock import (
-    MockMatlabEngine,
+from tests.mocks.matlab_engine_mock import (  # noqa: E402
     MatlabExecutionError,
     start_matlab as _mock_start_matlab,
 )
@@ -37,7 +36,7 @@ sys.modules.setdefault("matlab", _matlab_pkg)
 sys.modules.setdefault("matlab.engine", _engine_mod)
 
 # Now safe to import production code
-from matlab_mcp.config import (
+from matlab_mcp.config import (  # noqa: E402
     AppConfig,
     ExecutionConfig,
     MonitoringConfig,
@@ -45,7 +44,7 @@ from matlab_mcp.config import (
     ServerConfig,
     SessionsConfig,
 )
-from matlab_mcp.server import MatlabMCPServer, create_server, main
+from matlab_mcp.server import MatlabMCPServer, create_server, main  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

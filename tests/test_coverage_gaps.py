@@ -10,12 +10,9 @@ Covers:
 from __future__ import annotations
 
 import json
-import shutil
 import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from matlab_mcp.config import AppConfig, ExecutionConfig, PoolConfig, SecurityConfig, WorkspaceConfig
 from matlab_mcp.jobs.executor import JobExecutor

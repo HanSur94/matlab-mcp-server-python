@@ -7,14 +7,12 @@ _wait_for_completion (async completion, failure, and cancellation).
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import io
 import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
 
 from matlab_mcp.config import AppConfig, ExecutionConfig, OutputConfig, PoolConfig, WorkspaceConfig
 from matlab_mcp.jobs.executor import JobExecutor
@@ -107,7 +105,6 @@ class TestInjectJobContext:
         job = Job(session_id="s1", code="x=1;")
 
         # Make workspace raise on __setitem__
-        original_ws = inner.workspace
         broken_ws = MagicMock()
         broken_ws.__setitem__ = MagicMock(side_effect=RuntimeError("workspace locked"))
         inner.workspace = broken_ws
@@ -387,8 +384,6 @@ class TestExecuteStartFailure:
         config.execution = ExecutionConfig(sync_timeout=5)
 
         # Make the wrapper's execute raise
-        original_execute = wrapper.execute
-
         def broken_execute(*args, **kwargs):
             raise RuntimeError("engine crashed")
 
@@ -627,7 +622,6 @@ class TestBuildResultFigures:
 
     def test_plotly_enabled_with_figure_json(self, tmp_path: Path) -> None:
         """With plotly_conversion=True and figure JSON files, figures should be extracted."""
-        import json
         import shutil
 
         executor, tracker, wrapper, inner = _make_executor(plotly_conversion=True)
