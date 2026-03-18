@@ -36,13 +36,19 @@ def extract_tools(source: str) -> list[dict]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
 
-        # Check for @mcp.tool decorator
+        # Check for @mcp.tool decorator (bare or call form)
         is_tool = False
         for dec in node.decorator_list:
             if isinstance(dec, ast.Attribute) and dec.attr == "tool":
                 is_tool = True
             elif isinstance(dec, ast.Name) and dec.id == "tool":
                 is_tool = True
+            elif isinstance(dec, ast.Call):
+                func = dec.func
+                if isinstance(func, ast.Attribute) and func.attr == "tool":
+                    is_tool = True
+                elif isinstance(func, ast.Name) and func.id == "tool":
+                    is_tool = True
         if not is_tool:
             continue
 
