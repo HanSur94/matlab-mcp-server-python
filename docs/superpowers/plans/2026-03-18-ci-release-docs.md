@@ -152,14 +152,15 @@ jobs:
             -e MATLAB_MCP_MONITORING_ENABLED=true \
             -p 8765:8765 \
             matlab-mcp:test
-          # Wait for the server to start (it will fail to connect to MATLAB
-          # but the /health endpoint should still respond)
+          # The server will crash on pool start (no MATLAB engine in CI).
+          # curl will fail; || true prevents the step from failing.
+          # Goal: verify the image builds and the ENTRYPOINT is valid.
           sleep 5
-          curl --retry 10 --retry-delay 3 --retry-connrefused \
+          curl --retry 5 --retry-delay 2 --retry-connrefused \
             http://localhost:8765/health || true
           docker logs mcp-test
-          docker stop mcp-test
-          docker rm mcp-test
+          docker stop mcp-test || true
+          docker rm mcp-test || true
 ```
 
 Note: The docker health check uses `|| true` because the server may report unhealthy (no MATLAB engine available in CI) but the goal is to verify the container builds and starts — not that MATLAB is present.
@@ -295,11 +296,10 @@ def extract_tools(source: str) -> list[dict]:
 def categorize_tools(tools: list[dict]) -> dict[str, list[dict]]:
     """Group tools into logical categories."""
     categories = {
-        "Code Execution": ["execute_code", "check_code", "get_workspace"],
-        "Async Job Management": ["get_job_status", "get_job_result", "cancel_job", "list_jobs"],
+        "Execution & Workspace": ["execute_code", "check_code", "get_workspace"],
+        "Job Management": ["get_job_status", "get_job_result", "cancel_job", "list_jobs"],
         "Discovery": ["list_toolboxes", "list_functions", "get_help"],
-        "File Management": ["upload_data", "delete_file", "list_files"],
-        "File Reading": ["read_script", "read_data", "read_image"],
+        "File Operations": ["upload_data", "delete_file", "list_files", "read_script", "read_data", "read_image"],
         "Admin": ["get_pool_status"],
         "Monitoring": ["get_server_metrics", "get_server_health", "get_error_log"],
     }
@@ -458,9 +458,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
-          pip install anthropic
+        run: pip install anthropic
 
       - name: Generate MCP Tools Reference
         env:
@@ -477,9 +475,9 @@ jobs:
           # Copy generated file
           cp wiki/MCP-Tools-Reference.md /tmp/wiki/MCP-Tools-Reference.md
 
-          # Check for changes
+          # Check for changes (status --porcelain catches new/untracked files too)
           cd /tmp/wiki
-          git diff --quiet && echo "No changes to wiki" && exit 0
+          [ -z "$(git status --porcelain)" ] && echo "No changes to wiki" && exit 0
 
           # Commit and push
           git config user.name "github-actions[bot]"
