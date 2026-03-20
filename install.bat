@@ -245,23 +245,36 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    :: Use robocopy to copy MATLAB Engine source to a writable temp dir.
-    :: robocopy exit codes: 0=no change, 1=files copied, 2+=extras/mismatch, 8+=error
-    set "ENGINE_TEMP=%TEMP%\matlab_engine_build"
+    :: The MATLAB Engine setup.py finds MATLAB by walking up the directory
+    :: tree from extern\engines\python. We can't build in C:\Program Files
+    :: (read-only), so we recreate the directory structure in %TEMP% and use
+    :: directory junctions (mklink /J, no admin needed) to point back to the
+    :: real MATLAB dirs that setup.py validates.
+    set "ENGINE_TEMP=%TEMP%\matlab_engine_root"
     if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>nul
-    echo  Copying MATLAB Engine source to writable temp directory...
-    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>nul
+
+    echo  Preparing MATLAB Engine build directory...
+    mkdir "!ENGINE_TEMP!\extern\engines" 2>nul
+
+    :: Copy only the Python engine source (the part we need to build)
+    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!\extern\engines\python" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>nul
     set "_RC=!errorlevel!"
     if !_RC! geq 8 (
-        echo  [WARNING] Could not copy MATLAB Engine source files (robocopy exit !_RC!^).
+        echo  [WARNING] Could not copy MATLAB Engine source files.
         echo            Continuing with MCP server installation...
         goto :install_mcp
     )
+
+    :: Create directory junctions so setup.py can validate the MATLAB install.
+    :: mklink /J does NOT require admin rights (unlike mklink /D).
+    mklink /J "!ENGINE_TEMP!\bin" "!MATLAB_ROOT!\bin" >nul 2>nul
+    mklink /J "!ENGINE_TEMP!\extern\include" "!MATLAB_ROOT!\extern\include" >nul 2>nul
+    mklink /J "!ENGINE_TEMP!\extern\lib" "!MATLAB_ROOT!\extern\lib" >nul 2>nul
+    mklink /J "!ENGINE_TEMP!\toolbox" "!MATLAB_ROOT!\toolbox" >nul 2>nul
+
     echo  Building and installing MATLAB Engine API...
-    :: Set MATLABROOT so setup.py can find MATLAB (it normally walks up
-    :: from its own directory, which breaks when copied to temp)
-    set "MATLABROOT=!MATLAB_ROOT!"
-    pip install "!ENGINE_TEMP!" --no-build-isolation --quiet 2>&1
+    set "MATLABROOT=!ENGINE_TEMP!"
+    pip install "!ENGINE_TEMP!\extern\engines\python" --no-build-isolation --quiet 2>&1
     if !errorlevel! neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
@@ -276,8 +289,12 @@ if %errorlevel% equ 0 (
     ) else (
         echo  [OK] MATLAB Engine API installed.
     )
-    :: Clean up temp copy
-    rd /s /q "!ENGINE_TEMP!" 2>nul
+    :: Clean up — remove junctions first (rd /s /q follows junctions!)
+    if exist "!ENGINE_TEMP!\bin" rmdir "!ENGINE_TEMP!\bin" >nul 2>nul
+    if exist "!ENGINE_TEMP!\extern\include" rmdir "!ENGINE_TEMP!\extern\include" >nul 2>nul
+    if exist "!ENGINE_TEMP!\extern\lib" rmdir "!ENGINE_TEMP!\extern\lib" >nul 2>nul
+    if exist "!ENGINE_TEMP!\toolbox" rmdir "!ENGINE_TEMP!\toolbox" >nul 2>nul
+    rd /s /q "!ENGINE_TEMP!" >nul 2>nul
 )
 echo.
 
