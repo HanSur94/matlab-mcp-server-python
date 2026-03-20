@@ -284,13 +284,12 @@ if %errorlevel% equ 0 (
         echo  Continuing with MCP server installation...
     ) else (
         echo  [OK] MATLAB Engine API installed.
-        REM Fix _arch.txt — setup.py wrote the temp path into it, but at runtime
-        REM the engine needs the real MATLAB bin directory.
-        set "ARCH_FILE=%VENV_DIR%\Lib\site-packages\matlab\engine\_arch.txt"
-        if exist "!ARCH_FILE!" (
-            echo !MATLAB_ROOT!\bin\win64> "!ARCH_FILE!"
-            echo  [OK] Fixed MATLAB engine path to !MATLAB_ROOT!\bin\win64
-        )
+        REM Fix _arch.txt — setup.py may have written the temp path or failed to
+        REM create this file. Create/overwrite it with the real MATLAB bin path.
+        set "ARCH_DIR=%VENV_DIR%\Lib\site-packages\matlab\engine"
+        if not exist "!ARCH_DIR!" mkdir "!ARCH_DIR!" 2>nul
+        echo|set /p="!MATLAB_ROOT!\bin\win64">"!ARCH_DIR!\_arch.txt"
+        echo  [OK] Set MATLAB engine path: !MATLAB_ROOT!\bin\win64
     )
     REM Clean up — remove junctions first (rd /s /q follows junctions!)
     if exist "!ENGINE_TEMP!\bin" rmdir "!ENGINE_TEMP!\bin" >nul 2>nul
