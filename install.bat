@@ -198,6 +198,24 @@ echo  [OK] Virtual environment ready at %VENV_DIR%
 echo.
 
 :: ----------------------------------------------------------------------------
+:: 4b. Upgrade pip, setuptools, wheel (required before any other installs)
+::     --trusted-host flags handle corporate proxies with SSL inspection
+:: ----------------------------------------------------------------------------
+set "PIP_TRUST=--trusted-host pypi.org --trusted-host files.pythonhosted.org"
+
+echo  Upgrading pip, setuptools, and wheel...
+python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
+if %errorlevel% neq 0 (
+    echo  [WARNING] Could not upgrade pip. Trying with certificate verification disabled...
+    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet --cert "" 2>nul
+    if %errorlevel% neq 0 (
+        echo  [WARNING] pip upgrade failed. Continuing with existing pip version.
+        echo            If installs fail below, check your network/proxy settings.
+    )
+)
+echo.
+
+:: ----------------------------------------------------------------------------
 :: 5. Install MATLAB Engine API (into the venv — no admin needed)
 :: ----------------------------------------------------------------------------
 echo  [4/6] Installing MATLAB Engine API for Python...
@@ -213,12 +231,12 @@ if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
     echo  Installing from !ENGINE_API_DIR! ...
-    pip install "!ENGINE_API_DIR!" --quiet 2>&1
+    pip install "!ENGINE_API_DIR!" %PIP_TRUST% --quiet 2>&1
     if %errorlevel% neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
         echo            This can happen if your MATLAB version is incompatible
-        echo            with Python %PYTHON_VERSION%.
+        echo            with Python %PYTHON_VERSION%, or due to network/proxy issues.
         echo.
         echo            To install manually later, run:
         echo              call "%VENV_DIR%\Scripts\activate.bat"
@@ -238,13 +256,14 @@ echo.
 echo  [5/6] Installing MATLAB MCP Server...
 
 :: Prefer local source if available, otherwise pull from PyPI
+:: Use non-editable install (pip install .) for maximum compatibility
 set "SOURCE_DIR=%~dp0"
 if exist "%SOURCE_DIR%pyproject.toml" (
     echo  Installing from local source...
-    pip install -e "%SOURCE_DIR%." --quiet
+    pip install "%SOURCE_DIR%." %PIP_TRUST% --quiet
 ) else (
     echo  Installing from PyPI...
-    pip install matlab-mcp-python --quiet
+    pip install matlab-mcp-python %PIP_TRUST% --quiet
 )
 
 if %errorlevel% neq 0 (
