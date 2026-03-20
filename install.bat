@@ -80,7 +80,11 @@ set "MATLAB_ROOT="
 set "MATLAB_VER="
 set "HAS_ENGINE_API="
 
+:: Default MATLAB version to look for
+set "MATLAB_DEFAULT_VER=R2020b"
+
 :: Search common MATLAB install locations (all readable without admin)
+:: Pass 1: look for the default version (R2020b) first
 for %%d in (
     "C:\Program Files\MATLAB"
     "C:\Program Files (x86)\MATLAB"
@@ -90,12 +94,33 @@ for %%d in (
     "E:\Program Files\MATLAB"
     "E:\MATLAB"
 ) do (
-    if exist "%%~d" (
-        for /f "delims=" %%r in ('dir /b /ad /o-n "%%~d\R*" 2^>nul') do (
-            if not defined MATLAB_FOUND (
-                set "MATLAB_ROOT=%%~d\%%r"
-                set "MATLAB_VER=%%r"
-                set "MATLAB_FOUND=1"
+    if not defined MATLAB_FOUND (
+        if exist "%%~d\%MATLAB_DEFAULT_VER%" (
+            set "MATLAB_ROOT=%%~d\%MATLAB_DEFAULT_VER%"
+            set "MATLAB_VER=%MATLAB_DEFAULT_VER%"
+            set "MATLAB_FOUND=1"
+        )
+    )
+)
+
+:: Pass 2: if R2020b not found, fall back to the latest installed version
+if not defined MATLAB_FOUND (
+    for %%d in (
+        "C:\Program Files\MATLAB"
+        "C:\Program Files (x86)\MATLAB"
+        "%USERPROFILE%\MATLAB"
+        "D:\Program Files\MATLAB"
+        "D:\MATLAB"
+        "E:\Program Files\MATLAB"
+        "E:\MATLAB"
+    ) do (
+        if exist "%%~d" (
+            for /f "delims=" %%r in ('dir /b /ad /o-n "%%~d\R*" 2^>nul') do (
+                if not defined MATLAB_FOUND (
+                    set "MATLAB_ROOT=%%~d\%%r"
+                    set "MATLAB_VER=%%r"
+                    set "MATLAB_FOUND=1"
+                )
             )
         )
     )
@@ -104,7 +129,7 @@ for %%d in (
 if not defined MATLAB_FOUND (
     echo  [WARNING] MATLAB not found in standard locations.
     echo.
-    echo  Enter your MATLAB installation path (e.g., C:\Program Files\MATLAB\R2024a^)
+    echo  Enter your MATLAB installation path (e.g., C:\Program Files\MATLAB\R2020b^)
     echo  or press Enter to skip MATLAB Engine installation:
     echo.
     set /p "MATLAB_ROOT=  MATLAB path: "
