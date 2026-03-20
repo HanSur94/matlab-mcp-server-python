@@ -110,11 +110,11 @@ for %%d in (
 :: Check if the detected version is too old for Python 3.10+
 if defined MATLAB_FOUND (
     set "_VER_OK="
-    :: Extract year from version string (e.g., R2022b -> 2022)
+    REM Extract year from version string (e.g., R2022b -> 2022)
     set "_MVER=!MATLAB_VER!"
     set "_MYEAR=!_MVER:~1,4!"
     set "_MSUF=!_MVER:~5,1!"
-    :: R2022b+ required: year>2022, or year==2022 and suffix>=b
+    REM R2022b+ required: year>2022, or year==2022 and suffix>=b
     if !_MYEAR! gtr 2022 set "_VER_OK=1"
     if !_MYEAR! equ 2022 if /i "!_MSUF!" geq "b" set "_VER_OK=1"
     if not defined _VER_OK (
@@ -245,18 +245,15 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    :: The MATLAB Engine setup.py finds MATLAB by walking up the directory
-    :: tree from extern\engines\python. We can't build in C:\Program Files
-    :: (read-only), so we recreate the directory structure in %TEMP% and use
-    :: directory junctions (mklink /J, no admin needed) to point back to the
-    :: real MATLAB dirs that setup.py validates.
+    REM Recreate MATLAB dir structure in TEMP with junctions back to real dirs.
+    REM setup.py walks up from extern\engines\python to validate the install.
     set "ENGINE_TEMP=%TEMP%\matlab_engine_root"
     if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>nul
 
     echo  Preparing MATLAB Engine build directory...
     mkdir "!ENGINE_TEMP!\extern\engines" 2>nul
 
-    :: Copy only the Python engine source (the part we need to build)
+    REM Copy only the Python engine source (the part we need to build)
     robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!\extern\engines\python" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>nul
     set "_RC=!errorlevel!"
     if !_RC! geq 8 (
@@ -265,8 +262,7 @@ if %errorlevel% equ 0 (
         goto :install_mcp
     )
 
-    :: Create directory junctions so setup.py can validate the MATLAB install.
-    :: mklink /J does NOT require admin rights (unlike mklink /D).
+    REM Create directory junctions (mklink /J, no admin needed) for validation
     mklink /J "!ENGINE_TEMP!\bin" "!MATLAB_ROOT!\bin" >nul 2>nul
     mklink /J "!ENGINE_TEMP!\extern\include" "!MATLAB_ROOT!\extern\include" >nul 2>nul
     mklink /J "!ENGINE_TEMP!\extern\lib" "!MATLAB_ROOT!\extern\lib" >nul 2>nul
@@ -289,7 +285,7 @@ if %errorlevel% equ 0 (
     ) else (
         echo  [OK] MATLAB Engine API installed.
     )
-    :: Clean up — remove junctions first (rd /s /q follows junctions!)
+    REM Clean up — remove junctions first (rd /s /q follows junctions!)
     if exist "!ENGINE_TEMP!\bin" rmdir "!ENGINE_TEMP!\bin" >nul 2>nul
     if exist "!ENGINE_TEMP!\extern\include" rmdir "!ENGINE_TEMP!\extern\include" >nul 2>nul
     if exist "!ENGINE_TEMP!\extern\lib" rmdir "!ENGINE_TEMP!\extern\lib" >nul 2>nul
