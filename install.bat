@@ -248,9 +248,9 @@ if %errorlevel% equ 0 (
     :: Use robocopy to copy MATLAB Engine source to a writable temp dir.
     :: robocopy exit codes: 0=no change, 1=files copied, 2+=extras/mismatch, 8+=error
     set "ENGINE_TEMP=%TEMP%\matlab_engine_build"
-    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" 2>nul
+    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>nul
     echo  Copying MATLAB Engine source to writable temp directory...
-    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>&1
+    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>nul
     set "_RC=!errorlevel!"
     if !_RC! geq 8 (
         echo  [WARNING] Could not copy MATLAB Engine source files (robocopy exit !_RC!^).
@@ -258,7 +258,7 @@ if %errorlevel% equ 0 (
         goto :install_mcp
     )
     echo  Building and installing MATLAB Engine API...
-    pip install "!ENGINE_TEMP!" --quiet 2>&1
+    pip install "!ENGINE_TEMP!" --no-build-isolation --quiet 2>&1
     if !errorlevel! neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
