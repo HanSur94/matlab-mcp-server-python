@@ -284,12 +284,11 @@ if %errorlevel% equ 0 (
         echo  Continuing with MCP server installation...
     ) else (
         echo  [OK] MATLAB Engine API installed.
-        REM Fix _arch.txt — setup.py may have written the temp path or failed to
-        REM create this file. Create/overwrite it with the real MATLAB bin path.
-        set "ARCH_DIR=%VENV_DIR%\Lib\site-packages\matlab\engine"
-        if not exist "!ARCH_DIR!" mkdir "!ARCH_DIR!" 2>nul
-        echo|set /p="!MATLAB_ROOT!\bin\win64">"!ARCH_DIR!\_arch.txt"
-        echo  [OK] Set MATLAB engine path: !MATLAB_ROOT!\bin\win64
+        REM Fix _arch.txt and all other files — setup.py wrote temp paths.
+        REM Replace the temp root with the real MATLAB root in all installed files.
+        echo  Fixing MATLAB engine paths...
+        powershell -Command "Get-ChildItem -Path '!VENV_DIR!\Lib\site-packages\matlab' -Recurse -File | ForEach-Object { $c = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue; if ($c -and $c.Contains('!ENGINE_TEMP!')) { $c.Replace('!ENGINE_TEMP!', '!MATLAB_ROOT!') | Set-Content $_.FullName -NoNewline; Write-Host ('  Fixed: ' + $_.Name) } }"
+        echo  [OK] MATLAB engine paths fixed to !MATLAB_ROOT!
     )
     REM Clean up — remove junctions first (rd /s /q follows junctions!)
     if exist "!ENGINE_TEMP!\bin" rmdir "!ENGINE_TEMP!\bin" >nul 2>nul
