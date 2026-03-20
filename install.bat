@@ -198,27 +198,32 @@ echo  [OK] Virtual environment ready at %VENV_DIR%
 echo.
 
 :: ----------------------------------------------------------------------------
-:: 4b. Ensure setuptools and wheel are available in the venv.
-::     Python 3.10 venv ships these by default, but verify to be safe.
-::     --trusted-host flags handle corporate proxies with SSL inspection.
+:: 4b. Detect bundled vendor/ directory for fully offline installation.
+::     All dependencies (wheels) are shipped in vendor/ — no internet needed.
 :: ----------------------------------------------------------------------------
 set "PIP_TRUST=--trusted-host pypi.org --trusted-host files.pythonhosted.org"
+set "VENDOR_DIR=%~dp0vendor"
+set "OFFLINE="
 
-:: Check if setuptools is already in the venv (it usually is from python -m venv)
+if exist "%VENDOR_DIR%\*.whl" (
+    echo  [OK] Bundled wheels found in vendor/ — installing fully offline.
+    set "OFFLINE=1"
+) else (
+    echo  [INFO] No vendor/ directory — will download dependencies from PyPI.
+)
+echo.
+
+:: Ensure setuptools is available (needed for MATLAB Engine build)
 python -c "import setuptools" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  Bootstrapping setuptools and wheel...
-    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
-    if %errorlevel% neq 0 (
-        echo  [WARNING] Could not install setuptools from network.
-        echo            MATLAB Engine API install may fail if build tools are missing.
+    if defined OFFLINE (
+        pip install setuptools wheel --no-index --find-links "%VENDOR_DIR%" --quiet 2>&1
+    ) else (
+        python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
     )
 ) else (
     echo  [OK] setuptools already available in venv.
-    :: Try upgrading pip quietly — not critical if it fails
-    python -m pip install --upgrade pip %PIP_TRUST% --quiet 2>nul
 )
-echo.
 
 :: ----------------------------------------------------------------------------
 :: 5. Install MATLAB Engine API (fully offline — no downloads needed)
@@ -257,20 +262,36 @@ if %errorlevel% equ 0 (
 echo.
 
 :: ----------------------------------------------------------------------------
-:: 6. Install MATLAB MCP Server (into the venv — no admin needed)
+:: 6. Install MATLAB MCP Server and all dependencies
+::    Uses bundled vendor/ wheels if available (fully offline),
+::    otherwise falls back to PyPI.
 :: ----------------------------------------------------------------------------
 :install_mcp
 echo  [5/6] Installing MATLAB MCP Server...
 
-:: Prefer local source if available, otherwise pull from PyPI
-:: Use non-editable install (pip install .) for maximum compatibility
 set "SOURCE_DIR=%~dp0"
-if exist "%SOURCE_DIR%pyproject.toml" (
-    echo  Installing from local source...
-    pip install "%SOURCE_DIR%." %PIP_TRUST% --quiet
+set "REQ_FILE=%SOURCE_DIR%requirements-lock.txt"
+
+if defined OFFLINE (
+    echo  Installing dependencies from bundled wheels (offline^)...
+    if exist "%REQ_FILE%" (
+        pip install -r "%REQ_FILE%" --no-index --find-links "%VENDOR_DIR%" --quiet
+        if %errorlevel% neq 0 (
+            echo  [ERROR] Failed to install dependencies from vendor/.
+            pause
+            exit /b 1
+        )
+    )
+    echo  Installing MCP server from local source...
+    pip install "%SOURCE_DIR%." --no-deps --no-build-isolation --quiet
 ) else (
-    echo  Installing from PyPI...
-    pip install matlab-mcp-python %PIP_TRUST% --quiet
+    if exist "%SOURCE_DIR%pyproject.toml" (
+        echo  Installing from local source...
+        pip install "%SOURCE_DIR%." %PIP_TRUST% --quiet
+    ) else (
+        echo  Installing from PyPI...
+        pip install matlab-mcp-python %PIP_TRUST% --quiet
+    )
 )
 
 if %errorlevel% neq 0 (
