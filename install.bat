@@ -80,11 +80,13 @@ set "MATLAB_ROOT="
 set "MATLAB_VER="
 set "HAS_ENGINE_API="
 
-:: Default MATLAB version to look for
-set "MATLAB_DEFAULT_VER=R2020b"
+:: MATLAB R2022b is the minimum version with Python 3.10 support.
+:: Compatibility: R2022b (3.8-3.10), R2023a (3.8-3.10), R2023b (3.9-3.11),
+::                R2024a (3.9-3.11), R2024b (3.10-3.12), R2025a (3.10-3.12)
+set "MATLAB_MIN_VER=R2022b"
 
 :: Search common MATLAB install locations (all readable without admin)
-:: Pass 1: look for the default version (R2020b) first
+:: Picks the latest installed version (reverse-sorted by name)
 for %%d in (
     "C:\Program Files\MATLAB"
     "C:\Program Files (x86)\MATLAB"
@@ -94,42 +96,52 @@ for %%d in (
     "E:\Program Files\MATLAB"
     "E:\MATLAB"
 ) do (
-    if not defined MATLAB_FOUND (
-        if exist "%%~d\%MATLAB_DEFAULT_VER%" (
-            set "MATLAB_ROOT=%%~d\%MATLAB_DEFAULT_VER%"
-            set "MATLAB_VER=%MATLAB_DEFAULT_VER%"
-            set "MATLAB_FOUND=1"
-        )
-    )
-)
-
-:: Pass 2: if R2020b not found, fall back to the latest installed version
-if not defined MATLAB_FOUND (
-    for %%d in (
-        "C:\Program Files\MATLAB"
-        "C:\Program Files (x86)\MATLAB"
-        "%USERPROFILE%\MATLAB"
-        "D:\Program Files\MATLAB"
-        "D:\MATLAB"
-        "E:\Program Files\MATLAB"
-        "E:\MATLAB"
-    ) do (
-        if exist "%%~d" (
-            for /f "delims=" %%r in ('dir /b /ad /o-n "%%~d\R*" 2^>nul') do (
-                if not defined MATLAB_FOUND (
-                    set "MATLAB_ROOT=%%~d\%%r"
-                    set "MATLAB_VER=%%r"
-                    set "MATLAB_FOUND=1"
-                )
+    if exist "%%~d" (
+        for /f "delims=" %%r in ('dir /b /ad /o-n "%%~d\R*" 2^>nul') do (
+            if not defined MATLAB_FOUND (
+                set "MATLAB_ROOT=%%~d\%%r"
+                set "MATLAB_VER=%%r"
+                set "MATLAB_FOUND=1"
             )
         )
     )
 )
 
+:: Check if the detected version is too old for Python 3.10+
+if defined MATLAB_FOUND (
+    set "_VER_OK="
+    :: Extract year from version string (e.g., R2022b -> 2022)
+    set "_MVER=!MATLAB_VER!"
+    set "_MYEAR=!_MVER:~1,4!"
+    set "_MSUF=!_MVER:~5,1!"
+    :: R2022b+ required: year>2022, or year==2022 and suffix>=b
+    if !_MYEAR! gtr 2022 set "_VER_OK=1"
+    if !_MYEAR! equ 2022 if /i "!_MSUF!" geq "b" set "_VER_OK=1"
+    if not defined _VER_OK (
+        echo  [WARNING] Found !MATLAB_VER! but it does NOT support Python 3.10+.
+        echo            This server requires Python 3.10+ and MATLAB R2022b or newer.
+        echo.
+        echo            MATLAB Python compatibility:
+        echo              R2022b : Python 3.8, 3.9, 3.10
+        echo              R2023a : Python 3.8, 3.9, 3.10
+        echo              R2023b : Python 3.9, 3.10, 3.11
+        echo              R2024a : Python 3.9, 3.10, 3.11
+        echo              R2024b : Python 3.10, 3.11, 3.12
+        echo              R2025a : Python 3.10, 3.11, 3.12
+        echo.
+        echo  Ignoring incompatible !MATLAB_VER!. You can upgrade MATLAB or
+        echo  provide a path to a compatible installation below.
+        echo.
+        set "MATLAB_FOUND="
+        set "MATLAB_ROOT="
+        set "MATLAB_VER="
+    )
+)
+
 if not defined MATLAB_FOUND (
-    echo  [WARNING] MATLAB not found in standard locations.
+    echo  [WARNING] No compatible MATLAB found (R2022b or newer required^).
     echo.
-    echo  Enter your MATLAB installation path (e.g., C:\Program Files\MATLAB\R2020b^)
+    echo  Enter your MATLAB installation path (e.g., C:\Program Files\MATLAB\R2024a^)
     echo  or press Enter to skip MATLAB Engine installation:
     echo.
     set /p "MATLAB_ROOT=  MATLAB path: "
