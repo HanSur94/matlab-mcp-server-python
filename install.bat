@@ -258,6 +258,9 @@ if %errorlevel% equ 0 (
         goto :install_mcp
     )
     echo  Building and installing MATLAB Engine API...
+    :: Set MATLABROOT so setup.py can find MATLAB (it normally walks up
+    :: from its own directory, which breaks when copied to temp)
+    set "MATLABROOT=!MATLAB_ROOT!"
     pip install "!ENGINE_TEMP!" --no-build-isolation --quiet 2>&1
     if !errorlevel! neq 0 (
         echo.
