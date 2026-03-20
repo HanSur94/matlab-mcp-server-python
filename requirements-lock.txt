@@ -62,6 +62,8 @@ pydocket==0.18.2
 Pygments==2.19.2
 PyJWT==2.12.1
 pyperclip==1.11.0
+pywin32==311
+pywin32-ctypes==0.2.3
 python-dotenv==1.2.2
 python-json-logger==4.0.0
 python-multipart==0.0.22
@@ -79,6 +81,7 @@ taskgroup==0.2.2
 tomli==2.4.0
 typer==0.24.1
 typing-inspection==0.4.2
+tzdata==2025.3
 typing_extensions==4.15.0
 uncalled-for==0.2.0
 uvicorn==0.42.0

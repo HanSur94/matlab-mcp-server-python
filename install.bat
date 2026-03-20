@@ -228,9 +228,10 @@ if %errorlevel% neq 0 (
 )
 
 :: ----------------------------------------------------------------------------
-:: 5. Install MATLAB Engine API (fully offline — no downloads needed)
-::    --no-build-isolation tells pip to use the venv's setuptools instead of
-::    downloading a fresh copy into an isolated build environment.
+:: 5. Install MATLAB Engine API for Python
+::    Copies source to %TEMP% first because the MATLAB directory under
+::    C:\Program Files is read-only (pip needs to create build/ there).
+::    Uses pip 26+ which handles the build in a temp directory.
 :: ----------------------------------------------------------------------------
 echo  [4/6] Installing MATLAB Engine API for Python...
 
@@ -244,21 +245,21 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    :: Copy MATLAB Engine source to a temp dir because pip tries to create
-    :: a build/ folder in the source directory, which fails with "Access denied"
-    :: when the source is in C:\Program Files (read-only without admin).
+    :: Use robocopy to copy MATLAB Engine source to a writable temp dir.
+    :: robocopy exit codes: 0=no change, 1=files copied, 2+=extras/mismatch, 8+=error
     set "ENGINE_TEMP=%TEMP%\matlab_engine_build"
-    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>&1
+    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" 2>nul
     echo  Copying MATLAB Engine source to writable temp directory...
-    xcopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /I /Q /Y >nul 2>&1
-    if %errorlevel% neq 0 (
-        echo  [WARNING] Could not copy MATLAB Engine source files.
+    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>&1
+    set "_RC=!errorlevel!"
+    if !_RC! geq 8 (
+        echo  [WARNING] Could not copy MATLAB Engine source files (robocopy exit !_RC!^).
         echo            Continuing with MCP server installation...
         goto :install_mcp
     )
-    echo  Installing from temp copy (offline, no download needed^)...
-    pip install "!ENGINE_TEMP!" --no-build-isolation --quiet 2>&1
-    if %errorlevel% neq 0 (
+    echo  Building and installing MATLAB Engine API...
+    pip install "!ENGINE_TEMP!" --quiet 2>&1
+    if !errorlevel! neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
         echo            This can happen if your MATLAB version is incompatible
@@ -266,40 +267,30 @@ if %errorlevel% equ 0 (
         echo.
         echo            To install manually later, run:
         echo              call "%VENV_DIR%\Scripts\activate.bat"
-        echo              pip install "!ENGINE_API_DIR!" --no-build-isolation
+        echo              pip install "!ENGINE_API_DIR!"
         echo.
         echo  Continuing with MCP server installation...
     ) else (
         echo  [OK] MATLAB Engine API installed.
     )
     :: Clean up temp copy
-    rd /s /q "!ENGINE_TEMP!" >nul 2>&1
+    rd /s /q "!ENGINE_TEMP!" 2>nul
 )
 echo.
 
 :: ----------------------------------------------------------------------------
 :: 6. Install MATLAB MCP Server and all dependencies
-::    Uses bundled vendor/ wheels if available (fully offline),
-::    otherwise falls back to PyPI.
+::    Offline: all wheels (including the MCP server itself) are in vendor/.
+::    Online:  falls back to PyPI.
 :: ----------------------------------------------------------------------------
 :install_mcp
 echo  [5/6] Installing MATLAB MCP Server...
 
 set "SOURCE_DIR=%~dp0"
-set "REQ_FILE=%SOURCE_DIR%requirements-lock.txt"
 
 if defined OFFLINE (
-    echo  Installing dependencies from bundled wheels (offline^)...
-    if exist "%REQ_FILE%" (
-        pip install -r "%REQ_FILE%" --no-index --find-links "%VENDOR_DIR%" --quiet
-        if %errorlevel% neq 0 (
-            echo  [ERROR] Failed to install dependencies from vendor/.
-            pause
-            exit /b 1
-        )
-    )
-    echo  Installing MCP server from local source...
-    pip install "%SOURCE_DIR%." --no-deps --no-build-isolation --quiet
+    echo  Installing all packages from bundled wheels (offline^)...
+    pip install matlab-mcp-python --no-index --find-links "%VENDOR_DIR%" --quiet
 ) else (
     if exist "%SOURCE_DIR%pyproject.toml" (
         echo  Installing from local source...
