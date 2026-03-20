@@ -8,6 +8,7 @@ backports.tarfile==1.2.0
 beartype==0.22.9
 cachetools==7.0.5
 certifi==2026.2.25
+colorama==0.4.6
 cffi==2.0.0
 click==8.3.1
 cloudpickle==3.1.2

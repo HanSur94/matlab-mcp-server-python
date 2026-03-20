@@ -213,16 +213,18 @@ if exist "%VENDOR_DIR%\*.whl" (
 )
 echo.
 
-:: Ensure setuptools is available (needed for MATLAB Engine build)
-python -c "import setuptools" >nul 2>&1
-if %errorlevel% neq 0 (
-    if defined OFFLINE (
-        pip install setuptools wheel --no-index --find-links "%VENDOR_DIR%" --quiet 2>&1
-    ) else (
-        python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
-    )
+:: Upgrade pip, setuptools, and wheel FIRST — the venv's bundled pip (21.x)
+:: is too old to build packages properly. Vendor/ includes current wheels.
+echo  Upgrading pip, setuptools, and wheel...
+if defined OFFLINE (
+    python -m pip install --upgrade pip setuptools wheel --no-index --find-links "%VENDOR_DIR%" --quiet 2>&1
 ) else (
-    echo  [OK] setuptools already available in venv.
+    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
+)
+if %errorlevel% neq 0 (
+    echo  [WARNING] Could not upgrade pip/setuptools/wheel. Continuing with defaults.
+) else (
+    echo  [OK] pip, setuptools, and wheel are up to date.
 )
 
 :: ----------------------------------------------------------------------------
