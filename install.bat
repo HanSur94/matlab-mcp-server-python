@@ -198,25 +198,32 @@ echo  [OK] Virtual environment ready at %VENV_DIR%
 echo.
 
 :: ----------------------------------------------------------------------------
-:: 4b. Upgrade pip, setuptools, wheel (required before any other installs)
-::     --trusted-host flags handle corporate proxies with SSL inspection
+:: 4b. Ensure setuptools and wheel are available in the venv.
+::     Python 3.10 venv ships these by default, but verify to be safe.
+::     --trusted-host flags handle corporate proxies with SSL inspection.
 :: ----------------------------------------------------------------------------
 set "PIP_TRUST=--trusted-host pypi.org --trusted-host files.pythonhosted.org"
 
-echo  Upgrading pip, setuptools, and wheel...
-python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
+:: Check if setuptools is already in the venv (it usually is from python -m venv)
+python -c "import setuptools" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  [WARNING] Could not upgrade pip. Trying with certificate verification disabled...
-    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet --cert "" 2>nul
+    echo  Bootstrapping setuptools and wheel...
+    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
     if %errorlevel% neq 0 (
-        echo  [WARNING] pip upgrade failed. Continuing with existing pip version.
-        echo            If installs fail below, check your network/proxy settings.
+        echo  [WARNING] Could not install setuptools from network.
+        echo            MATLAB Engine API install may fail if build tools are missing.
     )
+) else (
+    echo  [OK] setuptools already available in venv.
+    :: Try upgrading pip quietly — not critical if it fails
+    python -m pip install --upgrade pip %PIP_TRUST% --quiet 2>nul
 )
 echo.
 
 :: ----------------------------------------------------------------------------
-:: 5. Install MATLAB Engine API (into the venv — no admin needed)
+:: 5. Install MATLAB Engine API (fully offline — no downloads needed)
+::    --no-build-isolation tells pip to use the venv's setuptools instead of
+::    downloading a fresh copy into an isolated build environment.
 :: ----------------------------------------------------------------------------
 echo  [4/6] Installing MATLAB Engine API for Python...
 
@@ -230,17 +237,17 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    echo  Installing from !ENGINE_API_DIR! ...
-    pip install "!ENGINE_API_DIR!" %PIP_TRUST% --quiet 2>&1
+    echo  Installing from !ENGINE_API_DIR! (offline, no download needed^)...
+    pip install "!ENGINE_API_DIR!" --no-build-isolation --quiet 2>&1
     if %errorlevel% neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
         echo            This can happen if your MATLAB version is incompatible
-        echo            with Python %PYTHON_VERSION%, or due to network/proxy issues.
+        echo            with Python %PYTHON_VERSION%.
         echo.
         echo            To install manually later, run:
         echo              call "%VENV_DIR%\Scripts\activate.bat"
-        echo              pip install "!ENGINE_API_DIR!"
+        echo              pip install "!ENGINE_API_DIR!" --no-build-isolation
         echo.
         echo  Continuing with MCP server installation...
     ) else (
