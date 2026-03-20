@@ -244,8 +244,20 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    echo  Installing from !ENGINE_API_DIR! (offline, no download needed^)...
-    pip install "!ENGINE_API_DIR!" --no-build-isolation --quiet 2>&1
+    :: Copy MATLAB Engine source to a temp dir because pip tries to create
+    :: a build/ folder in the source directory, which fails with "Access denied"
+    :: when the source is in C:\Program Files (read-only without admin).
+    set "ENGINE_TEMP=%TEMP%\matlab_engine_build"
+    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>&1
+    echo  Copying MATLAB Engine source to writable temp directory...
+    xcopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!" /E /I /Q /Y >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo  [WARNING] Could not copy MATLAB Engine source files.
+        echo            Continuing with MCP server installation...
+        goto :install_mcp
+    )
+    echo  Installing from temp copy (offline, no download needed^)...
+    pip install "!ENGINE_TEMP!" --no-build-isolation --quiet 2>&1
     if %errorlevel% neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
@@ -260,6 +272,8 @@ if %errorlevel% equ 0 (
     ) else (
         echo  [OK] MATLAB Engine API installed.
     )
+    :: Clean up temp copy
+    rd /s /q "!ENGINE_TEMP!" >nul 2>&1
 )
 echo.
 

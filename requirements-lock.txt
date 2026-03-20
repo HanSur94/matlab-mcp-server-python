@@ -75,6 +75,8 @@ shellingham==1.5.4
 sortedcontainers==2.4.0
 sse-starlette==3.3.3
 starlette==0.52.1
+taskgroup==0.2.2
+tomli==2.4.0
 typer==0.24.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
