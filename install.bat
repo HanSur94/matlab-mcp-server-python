@@ -418,5 +418,7 @@ echo  Virtual environment:   %VENV_DIR%
 echo  ----------------------------------------------------------
 echo.
 
-pause
+:: Only pause if running interactively (not in CI)
+echo prompt | findstr /i "prompt" >nul 2>nul && pause
 endlocal
+exit /b 0
