@@ -66,6 +66,13 @@ class MatlabMCPServer:
     """
 
     def __init__(self, config: AppConfig) -> None:
+        """Initialize server state and all sub-components.
+
+        Creates the engine pool, job tracker, executor, session manager,
+        security validator, and (when monitoring is enabled) the metrics
+        collector.  The metrics store is wired up later during the
+        server lifespan.
+        """
         self.config = config
         # Collector and store always initialised (None when disabled)
         self.collector: Optional[Any] = None
@@ -150,6 +157,16 @@ def create_server(config: AppConfig) -> FastMCP:
 
     @asynccontextmanager
     async def lifespan(mcp: FastMCP):  # type: ignore[type-arg]
+        """Manage server startup and graceful shutdown.
+
+        On startup: creates directories, starts the engine pool, wires
+        the monitoring subsystem, and launches background tasks for
+        health checks and session/job cleanup.
+
+        On shutdown: stops the metrics collector, closes the store,
+        cancels background tasks, drains running jobs, and stops the
+        engine pool.
+        """
         # Security warning for SSE without proxy auth
         if (
             config.server.transport == "sse"
@@ -238,6 +255,7 @@ def create_server(config: AppConfig) -> FastMCP:
 
         # Background task: periodic health checks
         async def health_check_loop() -> None:
+            """Periodically run engine health checks at the configured interval."""
             interval = config.pool.health_check_interval
             while True:
                 try:
@@ -254,6 +272,7 @@ def create_server(config: AppConfig) -> FastMCP:
 
         # Background task: session + job cleanup
         async def cleanup_loop() -> None:
+            """Periodically expire idle sessions, prune old jobs, and trim metrics."""
             while True:
                 try:
                     await asyncio.sleep(60)
@@ -657,7 +676,13 @@ def create_server(config: AppConfig) -> FastMCP:
 
 
 def main() -> None:
-    """CLI entry point.  Load config, set up logging, and run the server."""
+    """CLI entry point for the MATLAB MCP Server.
+
+    Parses ``--config`` and ``--transport`` arguments, loads the
+    configuration, configures logging (stderr + file), prints a
+    startup banner, and runs the FastMCP server in the selected
+    transport mode (stdio or SSE).
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="MATLAB MCP Server")
