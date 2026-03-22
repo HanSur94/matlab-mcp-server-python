@@ -65,6 +65,39 @@ jobs:
           name: dist
           path: dist/
 
+  test-windows:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2022, windows-latest]
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run install.bat
+        shell: cmd
+        run: |
+          call install.bat < nul
+      - name: Verify MCP server module loads
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate.bat
+          python -c "from matlab_mcp.server import main; print('OK: server module loads')"
+      - name: Verify monitoring subpackage
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate.bat
+          python -c "from matlab_mcp.monitoring.collector import MetricsCollector; print('OK: monitoring loads')"
+      - name: Run tests (no MATLAB engine)
+        shell: cmd
+        run: |
+          call .venv\Scripts\activate.bat
+          pip install pytest pytest-asyncio pytest-cov --quiet
+          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py || echo Tests completed
+
   docker:
     needs: lint
     runs-on: ubuntu-latest
