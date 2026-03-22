@@ -3,47 +3,25 @@ name: Generate Docs
 on:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no wiki push)'
+        type: boolean
+        default: false
 
 concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  generate-docs:
+  docs:
     runs-on: ubuntu-latest
+    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: HanSur94/wiki-gen-action@v1
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install anthropic
-
-      - name: Generate all wiki pages
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        continue-on-error: true
-        run: python scripts/generate_docs.py
-
-      - name: Push to wiki
-        env:
-          WIKI_PAT: ${{ secrets.WIKI_PAT }}
-        run: |
-          # Clone wiki repo
-          git clone https://x-access-token:${WIKI_PAT}@github.com/HanSur94/matlab-mcp-server-python.wiki.git /tmp/wiki
-
-          # Copy all generated wiki pages
-          cp wiki/*.md /tmp/wiki/
-
-          # Check for changes (status --porcelain catches new/untracked files too)
-          cd /tmp/wiki
-          [ -z "$(git status --porcelain)" ] && echo "No changes to wiki" && exit 0
-
-          # Commit and push
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.md
-          git commit -m "docs: auto-update wiki"
-          git push
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          wiki_pat: ${{ secrets.WIKI_PAT }}
+          dry_run: ${{ inputs.dry_run || 'false' }}
