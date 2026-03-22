@@ -97,7 +97,7 @@ jobs:
         run: |
           call .venv\Scripts\activate.bat
           pip install pytest pytest-asyncio pytest-cov --quiet
-          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py || echo Tests completed
+          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
   docker:
     needs: lint

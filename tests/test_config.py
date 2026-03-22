@@ -166,9 +166,9 @@ class TestPathResolution:
         assert Path(cfg.execution.temp_dir).is_absolute()
 
     def test_absolute_path_unchanged(self, tmp_path: Path):
-        abs_dir = "/absolute/path/results"
+        abs_dir = str(tmp_path / "absolute" / "path" / "results")
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(f"server:\n  result_dir: {abs_dir}\n")
+        config_file.write_text(f"server:\n  result_dir: '{abs_dir}'\n")
         cfg = load_config(config_file)
         assert cfg.server.result_dir == abs_dir
 
