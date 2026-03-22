@@ -19,3 +19,4 @@ results/
 .coverage
 htmlcov/
 /monitoring/
+.claude/
