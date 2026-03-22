@@ -13,6 +13,11 @@ from typing import Any, Optional
 
 
 class JobStatus(Enum):
+    """Lifecycle status of a MATLAB execution job.
+
+    Terminal statuses: COMPLETED, FAILED, CANCELLED.
+    """
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -30,6 +35,27 @@ class Job:
         ID of the session that owns this job.
     code:
         MATLAB code to execute.
+
+    Attributes
+    ----------
+    job_id:
+        Auto-generated unique identifier (``j-<uuid>``).
+    status:
+        Current lifecycle status; starts as PENDING.
+    engine_id:
+        ID of the engine executing this job (set when RUNNING).
+    result:
+        Structured result dict populated on completion.
+    error:
+        Error details dict populated on failure.
+    created_at:
+        Epoch timestamp when the job was created.
+    started_at:
+        Epoch timestamp when execution began.
+    completed_at:
+        Epoch timestamp when the job reached a terminal state.
+    future:
+        Handle to the background MATLAB future, if applicable.
     """
 
     session_id: str

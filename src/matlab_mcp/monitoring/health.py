@@ -4,6 +4,21 @@ import time
 from typing import Any
 
 def evaluate_health(collector: Any) -> dict[str, Any]:
+    """Evaluate the overall health of the MATLAB MCP Server.
+
+    Inspects engine pool utilization, error rates, and health-check
+    counters to classify the server as ``"healthy"``, ``"degraded"``,
+    or ``"unhealthy"``.
+
+    Args:
+        collector: A :class:`~matlab_mcp.monitoring.collector.MetricsCollector`
+            instance with references to the engine pool, job tracker,
+            and session manager.
+
+    Returns:
+        A dict with keys ``status``, ``uptime_seconds``, ``issues``,
+        ``engines``, ``active_jobs``, and ``active_sessions``.
+    """
     issues: list[str] = []
     pool_status = collector.pool.get_status() if collector.pool else {}
     total = pool_status.get("total", 0)

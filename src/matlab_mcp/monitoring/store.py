@@ -56,6 +56,13 @@ class MetricsStore:
     """Async SQLite-backed store for time-series metrics and structured events."""
 
     def __init__(self, db_path: str) -> None:
+        """Initialize the store.
+
+        Args:
+            db_path: Filesystem path to the SQLite database file.
+                The file and parent directories are created on
+                :meth:`initialize` if they do not exist.
+        """
         self._db_path = db_path
         self._db: Optional[aiosqlite.Connection] = None
 

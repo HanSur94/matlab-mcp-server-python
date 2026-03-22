@@ -1,4 +1,10 @@
-"""MCP tool implementations for server monitoring."""
+"""Server monitoring MCP tool implementations.
+
+Provides:
+- get_server_metrics_impl — return a snapshot of current server metrics
+- get_server_health_impl  — evaluate and return server health status
+- get_error_log_impl      — retrieve recent error-class events
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -8,24 +14,62 @@ from matlab_mcp.monitoring.store import ERROR_EVENT_TYPES
 
 
 async def get_server_metrics_impl(state: Any) -> dict[str, Any]:
-    """Implementation for get_server_metrics MCP tool."""
+    """Return a snapshot of current server metrics.
+
+    Parameters
+    ----------
+    state:
+        Server state object with a ``collector`` attribute
+        (a :class:`~matlab_mcp.monitoring.collector.MetricsCollector` or ``None``).
+
+    Returns
+    -------
+    dict
+        Metrics snapshot dict, or an error dict if monitoring is disabled.
+    """
     if not state.collector:
         return {"error": "Monitoring is disabled"}
     return state.collector.get_current_snapshot()
 
 
 async def get_server_health_impl(state: Any) -> dict[str, Any]:
-    """Implementation for get_server_health MCP tool."""
+    """Evaluate and return the current server health status.
+
+    Parameters
+    ----------
+    state:
+        Server state object with a ``collector`` attribute.
+
+    Returns
+    -------
+    dict
+        Health evaluation dict produced by
+        :func:`~matlab_mcp.monitoring.health.evaluate_health`,
+        or an error dict if monitoring is disabled.
+    """
     if not state.collector:
         return {"error": "Monitoring is disabled"}
     return evaluate_health(state.collector)
 
 
 async def get_error_log_impl(state: Any, limit: int = 20) -> dict[str, Any]:
-    """Implementation for get_error_log MCP tool.
+    """Retrieve recent error-class events from the monitoring store.
 
-    Returns only error-class events: job_failed, blocked_function,
-    engine_crash, health_check_fail.
+    Only returns events of error types: ``job_failed``, ``blocked_function``,
+    ``engine_crash``, and ``health_check_fail``.
+
+    Parameters
+    ----------
+    state:
+        Server state object with a ``collector`` attribute.
+    limit:
+        Maximum number of error events to return.
+
+    Returns
+    -------
+    dict
+        Dict with ``events`` list and ``total_errors_24h`` count,
+        or an error dict if monitoring is disabled.
     """
     if not state.collector:
         return {"error": "Monitoring is disabled"}

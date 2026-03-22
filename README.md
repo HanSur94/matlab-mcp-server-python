@@ -55,7 +55,8 @@ A Python MCP server that connects **any AI agent** (Claude, Cursor, Copilot, cus
 | Multi-user (SSE) | Session isolation with per-user workspaces |
 | Custom tools | Expose your `.m` functions as MCP tools via YAML |
 | Progress reporting | Long jobs report percentage back to the agent |
-| Cross-platform | Windows + macOS, MATLAB 2020b+ |
+| Cross-platform | Windows + macOS, MATLAB R2022b+ |
+| One-click Windows install | Offline `install.bat` — no admin rights needed |
 
 ## MATLAB Plot Conversion to Interactive Plotly
 
@@ -92,7 +93,7 @@ Line styles, colors, markers, legends, and axis labels are all preserved in the 
 ### Prerequisites
 
 - **Python 3.10+**
-- **MATLAB 2020b+** with the [MATLAB Engine API for Python](https://www.mathworks.com/help/matlab/matlab-engine-for-python.html) installed
+- **MATLAB R2022b+** with the [MATLAB Engine API for Python](https://www.mathworks.com/help/matlab/matlab-engine-for-python.html) installed
 
 ```bash
 # Install MATLAB Engine API (from your MATLAB installation)
@@ -102,6 +103,18 @@ pip install .
 ```
 
 ### Install the server
+
+**Windows (one-click, no admin needed):**
+
+```cmd
+git clone https://github.com/HanSur94/matlab-mcp-server-python.git
+cd matlab-mcp-server-python
+install.bat
+```
+
+The installer auto-detects MATLAB, creates a virtual environment, and installs everything from bundled wheels — fully offline, no internet required. Works on Windows 10/11 with Python 3.10, 3.11, or 3.12.
+
+**macOS / Linux:**
 
 ```bash
 # Option 1: Install from PyPI
@@ -658,7 +671,7 @@ AI Agent (Claude, Cursor, etc.)
 └──────────┬──────────────────┘  └─────────┬──────────────┘
            │                               │
 ┌──────────▼──────────────────┐  ┌─────────▼──────────────┐
-│   MATLAB Engines (2020b+)    │  │  Dashboard (Starlette)  │
+│   MATLAB Engines (R2022b+)    │  │  Dashboard (Starlette)  │
 │   Engine 1 │ Engine 2 │ ... │  │  /health  /metrics      │
 │   Workspace isolation        │  │  /dashboard (Plotly.js) │
 └──────────────────────────────┘  └─────────────────────────┘

@@ -47,6 +47,12 @@ class MetricsCollector:
     """Collects, aggregates, and persists metrics for the MATLAB MCP Server."""
 
     def __init__(self, config: Any) -> None:
+        """Initialize the metrics collector.
+
+        Args:
+            config: Application configuration; uses ``config.monitoring``
+                for sample interval and retention settings.
+        """
         self._config = config
         self.start_time: float = time.time()
 

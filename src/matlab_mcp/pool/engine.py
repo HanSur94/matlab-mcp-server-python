@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class EngineState(Enum):
+    """Possible lifecycle states of a MATLAB engine wrapper.
+
+    States follow the progression: STOPPED -> STARTING -> IDLE <-> BUSY.
+    """
+
     STOPPED = auto()
     STARTING = auto()
     IDLE = auto()
@@ -50,6 +55,7 @@ class MatlabEngineWrapper:
 
     @property
     def state(self) -> EngineState:
+        """Current lifecycle state of the engine."""
         return self._state
 
     @property

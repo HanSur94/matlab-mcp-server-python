@@ -168,7 +168,12 @@ class JobExecutor:
         job: Job,
         temp_dir: Optional[str],
     ) -> None:
-        """Inject job metadata into the MATLAB workspace."""
+        """Inject job metadata into the MATLAB workspace.
+
+        Sets ``__mcp_job_id__`` and optionally ``__mcp_temp_dir__`` as
+        workspace variables so that MATLAB scripts can reference them.
+        Failures are silently logged at DEBUG level.
+        """
         try:
             engine._engine.workspace["__mcp_job_id__"] = job.job_id
         except Exception:
@@ -187,7 +192,13 @@ class JobExecutor:
         future: Any,
         temp_dir: Optional[str],
     ) -> None:
-        """Background task that waits for an async job to complete."""
+        """Background task that waits for an async job to complete.
+
+        Blocks (in a thread executor) until the MATLAB future resolves
+        or ``max_execution_time`` is exceeded.  On completion the job is
+        marked completed or failed, and the engine is released back to
+        the pool regardless of outcome.
+        """
         max_time = self._config.execution.max_execution_time
         loop = asyncio.get_running_loop()
         try:
@@ -329,7 +340,11 @@ class JobExecutor:
 
     @staticmethod
     def _safe_serialize(value: Any) -> Any:
-        """Convert a MATLAB workspace value to a JSON-serializable Python type."""
+        """Convert a MATLAB workspace value to a JSON-serializable Python type.
+
+        Handles primitives, nested lists/dicts, numpy arrays/scalars,
+        and MATLAB array types.  Falls back to ``repr()`` for unknown types.
+        """
         if value is None or isinstance(value, (bool, int, float, str)):
             return value
         if isinstance(value, (list, tuple)):

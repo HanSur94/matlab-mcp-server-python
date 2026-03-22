@@ -201,9 +201,12 @@ def make_custom_tool_handler(
     _server_state = server_state
 
     async def _handler(*args, **kwargs):
-        # Bind arguments to the signature (skip ctx which is first positional)
-        # args[0] is ctx
-        # remaining args / kwargs are tool params
+        """Invoke the MATLAB function with the supplied arguments.
+
+        Binds positional and keyword arguments to the function signature,
+        converts each value to its MATLAB literal representation, and
+        delegates to the executor.
+        """
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         arguments = dict(bound.arguments)

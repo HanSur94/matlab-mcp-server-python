@@ -1,7 +1,17 @@
 """MATLAB figure property to Plotly JSON mapper.
 
-Converts raw MATLAB figure property dicts (from ``mcp_extract_props.m``)
+Converts raw MATLAB figure property dicts (produced by ``mcp_extract_props.m``)
 into Plotly figure dicts suitable for ``Plotly.newPlot()``.
+
+The module provides:
+
+* **Mapping tables** -- translate MATLAB line styles, markers, legend
+  positions, colormaps, and grid styles to their Plotly equivalents.
+* **Utility helpers** -- color conversion, font stack construction.
+* **Trace converters** -- one function per MATLAB child type (line, bar,
+  scatter, surface, image/heatmap, histogram, patch).
+* **Layout builder** -- axis layout, subplot domain computation, and the
+  top-level ``convert_figure`` entry point.
 """
 from __future__ import annotations
 
@@ -15,6 +25,7 @@ logger = logging.getLogger(__name__)
 # Mapping tables
 # ---------------------------------------------------------------------------
 
+# MATLAB line style string -> Plotly dash string
 LINE_STYLE_MAP: dict[str, str] = {
     "-": "solid",
     "--": "dash",
@@ -22,6 +33,7 @@ LINE_STYLE_MAP: dict[str, str] = {
     "-.": "dashdot",
 }
 
+# MATLAB marker character -> Plotly marker symbol (None = no marker)
 MARKER_MAP: dict[str, Optional[str]] = {
     "o": "circle",
     "+": "cross",
@@ -39,6 +51,7 @@ MARKER_MAP: dict[str, Optional[str]] = {
     "none": None,
 }
 
+# MATLAB legend Location -> Plotly legend position dict (x, y, anchor)
 LEGEND_LOCATION_MAP: dict[str, dict] = {
     "northeast": {"x": 1, "y": 1, "xanchor": "right", "yanchor": "top"},
     "northwest": {"x": 0, "y": 1, "xanchor": "left", "yanchor": "top"},
@@ -56,6 +69,7 @@ LEGEND_LOCATION_MAP: dict[str, dict] = {
     "westoutside": {"x": -0.15, "y": 0.5, "xanchor": "right", "yanchor": "middle"},
 }
 
+# MATLAB colormap name -> closest Plotly colorscale name
 COLORMAP_MAP: dict[str, str] = {
     "parula": "Viridis",
     "jet": "Jet",
@@ -68,6 +82,7 @@ COLORMAP_MAP: dict[str, str] = {
     "turbo": "Turbo",
 }
 
+# MATLAB grid line style -> Plotly dash string (None = no grid)
 GRID_STYLE_MAP: dict[str, Optional[str]] = {
     "-": "solid",
     "--": "dash",
@@ -129,7 +144,11 @@ def _scatter_type(child: dict) -> str:
 
 
 def convert_line(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB line child to a Plotly scatter trace."""
+    """Convert a MATLAB line child to a Plotly scatter trace.
+
+    Handles line style, color, width, markers, and display name.
+    Uses WebGL (``scattergl``) for datasets exceeding the threshold.
+    """
     marker_symbol = MARKER_MAP.get(child.get("marker", "none"))
     mode = "lines+markers" if marker_symbol else "lines"
     line_color = resolve_color(child.get("color"), None)
@@ -168,7 +187,10 @@ def convert_line(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_bar(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB bar child to a Plotly bar trace."""
+    """Convert a MATLAB bar child to a Plotly bar trace.
+
+    Maps face/edge colors and bar width from MATLAB properties.
+    """
     face_color = resolve_color(child.get("face_color"), None)
     edge_color = resolve_color(child.get("edge_color"), face_color)
 
@@ -195,7 +217,11 @@ def convert_bar(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_scatter_trace(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB scatter child to a Plotly scatter trace."""
+    """Convert a MATLAB scatter child to a Plotly scatter trace.
+
+    Translates marker symbol, size (MATLAB SizeData is area in pt**2;
+    Plotly marker.size is diameter), and face/edge colors.
+    """
     face_color = resolve_color(child.get("marker_face_color"), None)
     edge_color = resolve_color(child.get("marker_edge_color"), face_color)
     marker_symbol = MARKER_MAP.get(child.get("marker", "o"), "circle")
@@ -229,7 +255,10 @@ def convert_scatter_trace(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_surface(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB surface child to a Plotly surface trace."""
+    """Convert a MATLAB surface child to a Plotly surface trace.
+
+    Maps MATLAB colormaps to the closest Plotly colorscale.
+    """
     colormap = child.get("colormap", "parula")
     colorscale = COLORMAP_MAP.get(colormap, "Viridis")
 
@@ -243,7 +272,11 @@ def convert_surface(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_heatmap(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB image child to a Plotly heatmap trace."""
+    """Convert a MATLAB image child to a Plotly heatmap trace.
+
+    Uses the image's ``cdata`` as the ``z`` matrix and maps the
+    MATLAB colormap to a Plotly colorscale.
+    """
     colormap = child.get("colormap", "gray")
     colorscale = COLORMAP_MAP.get(colormap, "Greys")
 
@@ -257,7 +290,11 @@ def convert_heatmap(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_histogram_trace(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB histogram child to a Plotly histogram trace."""
+    """Convert a MATLAB histogram child to a Plotly histogram trace.
+
+    Maps face/edge colors and, when available, explicit bin edges
+    to Plotly ``xbins``.
+    """
     face_color = resolve_color(child.get("face_color"), None)
     edge_color = resolve_color(child.get("edge_color"), face_color)
 
@@ -284,7 +321,12 @@ def convert_histogram_trace(child: dict, axis_suffix: str) -> dict:
 
 
 def convert_patch(child: dict, axis_suffix: str) -> dict:
-    """Convert a MATLAB patch child to a Plotly scatter trace with fill."""
+    """Convert a MATLAB patch child to a Plotly scatter trace with fill.
+
+    Closes the polygon by repeating the first vertex when needed and
+    applies ``fill="toself"`` with an RGBA fill color derived from the
+    MATLAB face color and alpha.
+    """
     face_color_raw = child.get("face_color", [0.8, 0.8, 0.8])
     face_alpha = child.get("face_alpha", 1.0)
     edge_color = resolve_color(child.get("edge_color"), None)
@@ -348,7 +390,12 @@ _CHILD_CONVERTERS: dict[str, Any] = {
 def compute_domains(
     grid: Optional[dict], axes_list: list[dict]
 ) -> list[dict[str, list[float]]]:
-    """Compute Plotly xaxis/yaxis domain pairs from grid positions.
+    """Compute Plotly xaxis/yaxis domain pairs from subplot grid positions.
+
+    When *grid* is ``None`` (single-axes figure), returns a single
+    full-width domain ``[0, 1]``.  For tiled layouts, each axes' row/col
+    position and span are converted to ``[x_start, x_end]`` and
+    ``[y_start, y_end]`` with small inter-subplot gaps.
 
     Returns a list parallel to *axes_list*.
     """
@@ -380,7 +427,13 @@ def _axis_suffix(index: int) -> str:
 
 
 def _build_axis_layout(axes_data: dict, suffix: str) -> dict:
-    """Build xaxis/yaxis layout dicts from MATLAB axes properties."""
+    """Build xaxis/yaxis layout dicts from MATLAB axes properties.
+
+    Translates grid visibility/color/dash, tick values/labels, axis
+    labels, axis direction, and tick font into the Plotly layout
+    schema.  For multi-axis subplots, links the y-axis to its
+    corresponding x-axis via ``anchor``.
+    """
     grid_color_rgb = axes_data.get("grid_color", [0.15, 0.15, 0.15])
     grid_alpha = axes_data.get("grid_alpha", 0.15)
     r, g, b = [round(c * 255) for c in grid_color_rgb]
@@ -465,7 +518,12 @@ def _build_axis_layout(axes_data: dict, suffix: str) -> dict:
 
 
 def convert_axes(axes_data: dict, axis_index: int) -> tuple[list[dict], dict]:
-    """Convert a single MATLAB axes dict to Plotly traces + layout fragment."""
+    """Convert a single MATLAB axes dict to Plotly traces and layout fragment.
+
+    Iterates over the axes' children, dispatches each to the appropriate
+    trace converter, and builds the corresponding xaxis/yaxis layout
+    properties (grid, labels, ticks, direction).
+    """
     suffix = _axis_suffix(axis_index)
     traces: list[dict] = []
 
@@ -483,7 +541,14 @@ def convert_axes(axes_data: dict, axis_index: int) -> tuple[list[dict], dict]:
 
 
 def convert_figure(matlab_fig: dict) -> dict:
-    """Convert a full MATLAB figure property dict to a Plotly figure dict."""
+    """Convert a full MATLAB figure property dict to a Plotly figure dict.
+
+    This is the top-level entry point.  It processes all axes in the
+    figure, merges traces and layout fragments, computes subplot
+    domains for tiled layouts, derives background/font colors, and
+    returns a dict with ``data`` (list of traces) and ``layout`` keys
+    ready for ``Plotly.newPlot()``.
+    """
     axes_list = matlab_fig.get("axes", [])
     layout_type = matlab_fig.get("layout_type", "single")
     grid = matlab_fig.get("grid") if layout_type != "single" else None

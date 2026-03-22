@@ -46,6 +46,7 @@ class EnginePoolManager:
     # ------------------------------------------------------------------
 
     def _make_engine(self) -> MatlabEngineWrapper:
+        """Create a new engine wrapper with an auto-incremented ID."""
         engine_id = f"engine-{self._next_id}"
         self._next_id += 1
         return MatlabEngineWrapper(engine_id, self._pool_config, self._workspace_config)
@@ -215,7 +216,10 @@ class EnginePoolManager:
                 await self._available.put(new_engine)
 
     def get_status(self) -> Dict[str, int]:
-        """Return pool status summary."""
+        """Return a dict summarizing pool status.
+
+        Keys: ``total``, ``available``, ``busy``, ``max``.
+        """
         total = len(self._all_engines)
         available = self._available.qsize()
         busy = total - available

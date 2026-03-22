@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class ServerConfig(BaseModel):
+    """General server settings (name, transport, host/port, logging, drain)."""
+
     name: str = "matlab-mcp-server"
     transport: Literal["stdio", "sse"] = "stdio"
     host: str = "0.0.0.0"
@@ -30,6 +32,8 @@ class ServerConfig(BaseModel):
 
 
 class PoolConfig(BaseModel):
+    """MATLAB engine pool sizing, timeouts, and auto-scaling thresholds."""
+
     min_engines: int = 2
     max_engines: int = 10
     scale_down_idle_timeout: int = 900
@@ -41,6 +45,8 @@ class PoolConfig(BaseModel):
 
 
 class ExecutionConfig(BaseModel):
+    """Code execution timeouts, workspace isolation, and temp directory."""
+
     sync_timeout: int = 30
     max_execution_time: int = 86400
     workspace_isolation: bool = True
@@ -50,20 +56,28 @@ class ExecutionConfig(BaseModel):
 
 
 class WorkspaceConfig(BaseModel):
+    """MATLAB workspace setup: default paths and startup commands."""
+
     default_paths: List[str] = Field(default_factory=list)
     startup_commands: List[str] = Field(default_factory=lambda: ["format long"])
 
 
 class ToolboxesConfig(BaseModel):
+    """Toolbox visibility: whitelist, blacklist, or expose all."""
+
     mode: Literal["whitelist", "blacklist", "all"] = "whitelist"
     list: List[str] = Field(default_factory=list)
 
 
 class CustomToolsConfig(BaseModel):
+    """Path to the YAML file defining user-provided custom MCP tools."""
+
     config_file: str = "./custom_tools.yaml"
 
 
 class SecurityConfig(BaseModel):
+    """Security controls: blocked MATLAB functions, upload limits, proxy auth."""
+
     blocked_functions_enabled: bool = True
     blocked_functions: List[str] = Field(
         default_factory=lambda: [
@@ -77,12 +91,16 @@ class SecurityConfig(BaseModel):
 
 
 class CodeCheckerConfig(BaseModel):
+    """Code linting (checkcode/mlint) toggle and severity filter."""
+
     enabled: bool = True
     auto_check_before_execute: bool = False
     severity_levels: List[str] = Field(default_factory=lambda: ["error", "warning"])
 
 
 class OutputConfig(BaseModel):
+    """Output formatting: Plotly conversion, image format, thumbnails, truncation."""
+
     plotly_conversion: bool = True
     static_image_format: Literal["png", "jpg", "svg"] = "png"
     static_image_dpi: int = 150
@@ -93,12 +111,16 @@ class OutputConfig(BaseModel):
 
 
 class SessionsConfig(BaseModel):
+    """Session limits, idle timeout, and finished-job retention."""
+
     max_sessions: int = 50
     session_timeout: int = 3600
     job_retention_seconds: int = 86400
 
 
 class MonitoringConfig(BaseModel):
+    """Monitoring subsystem: sampling interval, retention, DB path, dashboard."""
+
     enabled: bool = True
     sample_interval: int = 10
     retention_days: int = 7
@@ -108,6 +130,12 @@ class MonitoringConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
+    """Top-level application configuration aggregating all sub-configs.
+
+    Relative filesystem paths are resolved to absolute paths via
+    :meth:`resolve_paths` after loading.
+    """
+
     server: ServerConfig = Field(default_factory=ServerConfig)
     pool: PoolConfig = Field(default_factory=PoolConfig)
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
@@ -125,6 +153,12 @@ class AppConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_pool(self) -> "AppConfig":
+        """Validate pool constraints after model construction.
+
+        Raises ``ValueError`` if ``min_engines > max_engines`` and emits a
+        warning on macOS when ``max_engines > 4`` due to known stability
+        limitations.
+        """
         if self.pool.min_engines > self.pool.max_engines:
             raise ValueError(
                 f"pool.min_engines ({self.pool.min_engines}) must not exceed "
@@ -191,7 +225,10 @@ def _apply_env_overrides(data: dict) -> dict:
 def load_config(path: Optional[Path] = None) -> AppConfig:
     """Load application config from a YAML file with env var overrides.
 
-    If *path* is None or the file does not exist, default values are used.
+    If *path* is ``None`` or the file does not exist, default values are
+    used.  After parsing, ``MATLAB_MCP_*`` environment variables are
+    applied (see :func:`_apply_env_overrides`) and relative paths are
+    resolved against the config file's parent directory.
     """
     data: dict = {}
     config_dir = Path.cwd()

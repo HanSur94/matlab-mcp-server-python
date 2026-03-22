@@ -15,7 +15,11 @@ _ACTIVE_STATUSES = {JobStatus.PENDING, JobStatus.RUNNING}
 
 
 class JobTracker:
-    """Tracks all jobs (active and historical) keyed by job_id.
+    """Thread-safe registry that tracks all jobs (active and historical) by job_id.
+
+    Jobs remain in the tracker after reaching a terminal state so that
+    clients can poll for results.  Call :meth:`prune` periodically to
+    evict stale terminal jobs.
 
     Parameters
     ----------
