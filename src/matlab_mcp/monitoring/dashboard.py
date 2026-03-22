@@ -1,7 +1,6 @@
 """Dashboard Starlette sub-app with API routes and static file serving."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +10,6 @@ from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from matlab_mcp.monitoring.health import evaluate_health
 from matlab_mcp.monitoring.routes import (
     build_health_response,
     build_metrics_response,
