@@ -214,10 +214,20 @@ def create_server(config: AppConfig) -> FastMCP:
 
             state.collector.store = state.store
 
-        # Start engine pool
-        logger.info("Starting MATLAB engine pool...")
-        await state.pool.start()
-        logger.info("MATLAB engine pool started")
+        # Start engine pool (skip in inspect mode)
+        if getattr(config, '_inspect_mode', False):
+            logger.info('Inspect mode: skipping MATLAB engine pool startup')
+        else:
+            logger.info('Starting MATLAB engine pool...')
+            try:
+                await state.pool.start()
+                logger.info('MATLAB engine pool started')
+            except Exception as exc:
+                logger.warning(
+                    'MATLAB engine pool failed to start: %s. '
+                    'Tools will be unavailable until MATLAB is configured.',
+                    exc,
+                )
 
         # Wire collector to live components
         if state.collector:
@@ -697,6 +707,11 @@ def main() -> None:
         choices=["stdio", "sse"],
         help="Override transport from config",
     )
+    parser.add_argument(
+        "--inspect",
+        action="store_true",
+        help="Start in inspection mode (no MATLAB required)",
+    )
     args = parser.parse_args()
 
     # Load config
@@ -767,6 +782,10 @@ def main() -> None:
         else:
             logger.info("  Dashboard:       http://%s:%d/dashboard", config.server.host, config.server.port)
     logger.info("=" * 60)
+
+    if args.inspect:
+        config.pool.min_engines = 0
+        config._inspect_mode = True  # type: ignore[attr-defined]
 
     server = create_server(config)
 
