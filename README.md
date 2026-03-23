@@ -29,6 +29,9 @@
   <a href="https://github.com/HanSur94/matlab-mcp-server-python/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/HanSur94/matlab-mcp-server-python" alt="License">
   </a>
+  <a href="https://glama.ai/mcp/servers/@HanSur94/matlab-mcp-server-python">
+    <img src="https://glama.ai/mcp/servers/@HanSur94/matlab-mcp-server-python/badge" alt="MATLAB MCP server MCP server">
+  </a>
 </p>
 
 ---
