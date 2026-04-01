@@ -26,10 +26,10 @@ Requirements for v2.0 milestone. Each maps to roadmap phases.
 
 ### Transport
 
-- [ ] **TRNS-01**: Server supports streamable HTTP transport at `/mcp` endpoint
+- [x] **TRNS-01**: Server supports streamable HTTP transport at `/mcp` endpoint
 - [ ] **TRNS-02**: stdio transport continues to work unchanged with no auth
 - [ ] **TRNS-03**: SSE transport logs a deprecation warning when selected
-- [ ] **TRNS-04**: Stateless HTTP mode available for load-balancer-friendly deployments
+- [x] **TRNS-04**: Stateless HTTP mode available for load-balancer-friendly deployments
 - [ ] **TRNS-05**: Session routing works correctly on HTTP transport (`ctx.session_id` fallback to `ctx.client_id`)
 
 ### Human-in-the-Loop
@@ -89,10 +89,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-04 | Phase 2 | Complete |
 | AUTH-05 | Phase 2 | Complete |
 | AUTH-06 | Phase 2 | Complete |
-| TRNS-01 | Phase 3 | Pending |
+| TRNS-01 | Phase 3 | Complete |
 | TRNS-02 | Phase 3 | Pending |
 | TRNS-03 | Phase 3 | Pending |
-| TRNS-04 | Phase 3 | Pending |
+| TRNS-04 | Phase 3 | Complete |
 | TRNS-05 | Phase 3 | Pending |
 | HITL-01 | Phase 4 | Pending |
 | HITL-02 | Phase 4 | Pending |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 02-02-PLAN.md (middleware wiring + config warning)
-last_updated: "2026-04-01T20:24:45.917Z"
+status: executing
+stopped_at: Completed 03-01-PLAN.md (streamablehttp transport config)
+last_updated: "2026-04-01T21:11:58.808Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 4
+  total_plans: 6
   completed_plans: 4
   percent: 0
 ---
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
-**Current focus:** Phase 02 — auth-config-bearer-token-middleware
+**Current focus:** Phase 03 — streamable-http-transport-session-routing
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 03 (streamable-http-transport-session-routing) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P02 | 8 | 2 tasks | 2 files |
 | Phase 02 P01 | 133 | 1 tasks | 3 files |
 | Phase 02 P02 | 600 | 2 tasks | 4 files |
+| Phase 03 P01 | 1 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Recent decisions affecting current work:
 - [Phase 02]: hmac.compare_digest used for constant-time token comparison to prevent timing oracle attacks
 - [Phase 02]: Middleware list order: BearerAuthMiddleware outermost, CORSMiddleware inner — auth checked before CORS headers
 - [Phase 02]: _warn_if_token_in_config fires on raw YAML before env overrides to detect config file leaks
+- [Phase 03]: No changes to _apply_env_overrides needed — existing bool coercion handles stateless_http automatically
 
 ### Pending Todos
 
@@ -88,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T20:21:45.609Z
-Stopped at: Completed 02-02-PLAN.md (middleware wiring + config warning)
+Last session: 2026-04-01T21:11:58.804Z
+Stopped at: Completed 03-01-PLAN.md (streamablehttp transport config)
 Resume file: None

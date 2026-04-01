@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. FastMCP 3.0 Upgrade | 2/2 | Complete   | 2026-04-01 |
 | 2. Auth Config + Bearer Token Middleware | 1/2 | In Progress|  |
-| 3. Streamable HTTP Transport + Session Routing | 0/2 | Not started | - |
+| 3. Streamable HTTP Transport + Session Routing | 0/2 | Planned    |  |
 | 4. Human-in-the-Loop Approval | 0/TBD | Not started | - |
 | 5. Windows 10 + Platform Hardening | 0/TBD | Not started | - |
 | 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |
