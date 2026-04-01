@@ -78,39 +78,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FMCP-01 | Pending | Pending |
-| FMCP-02 | Pending | Pending |
-| FMCP-03 | Pending | Pending |
-| FMCP-04 | Pending | Pending |
-| FMCP-05 | Pending | Pending |
-| AUTH-01 | Pending | Pending |
-| AUTH-02 | Pending | Pending |
-| AUTH-03 | Pending | Pending |
-| AUTH-04 | Pending | Pending |
-| AUTH-05 | Pending | Pending |
-| AUTH-06 | Pending | Pending |
-| TRNS-01 | Pending | Pending |
-| TRNS-02 | Pending | Pending |
-| TRNS-03 | Pending | Pending |
-| TRNS-04 | Pending | Pending |
-| TRNS-05 | Pending | Pending |
-| HITL-01 | Pending | Pending |
-| HITL-02 | Pending | Pending |
-| HITL-03 | Pending | Pending |
-| HITL-04 | Pending | Pending |
-| HITL-05 | Pending | Pending |
-| HITL-06 | Pending | Pending |
-| PLAT-01 | Pending | Pending |
-| PLAT-02 | Pending | Pending |
-| PLAT-03 | Pending | Pending |
-| PLAT-04 | Pending | Pending |
-| PLAT-05 | Pending | Pending |
+| FMCP-01 | Phase 1 | Pending |
+| FMCP-02 | Phase 1 | Pending |
+| FMCP-03 | Phase 1 | Pending |
+| FMCP-04 | Phase 1 | Pending |
+| FMCP-05 | Phase 1 | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| AUTH-05 | Phase 2 | Pending |
+| AUTH-06 | Phase 2 | Pending |
+| TRNS-01 | Phase 3 | Pending |
+| TRNS-02 | Phase 3 | Pending |
+| TRNS-03 | Phase 3 | Pending |
+| TRNS-04 | Phase 3 | Pending |
+| TRNS-05 | Phase 3 | Pending |
+| HITL-01 | Phase 4 | Pending |
+| HITL-02 | Phase 4 | Pending |
+| HITL-03 | Phase 4 | Pending |
+| HITL-04 | Phase 4 | Pending |
+| HITL-05 | Phase 4 | Pending |
+| HITL-06 | Phase 4 | Pending |
+| PLAT-01 | Phase 5 | Pending |
+| PLAT-02 | Phase 5 | Pending |
+| PLAT-03 | Phase 5 | Pending |
+| PLAT-04 | Phase 6 | Pending |
+| PLAT-05 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27 ⚠️
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-01*
-*Last updated: 2026-04-01 after initial definition*
+*Last updated: 2026-04-01 after roadmap creation*
