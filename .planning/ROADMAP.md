@@ -46,9 +46,10 @@ Plans:
   3. stdio transport processes requests without any auth check
   4. CORS headers are present on HTTP responses so browser-based agent UIs can connect
   5. Running `--generate-token` prints a ready-to-use token and the env var snippet to set it
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [x] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+- [ ] 02-01-PLAN.md — Create BearerAuthMiddleware pure ASGI class with unit tests
+- [ ] 02-02-PLAN.md — Wire middleware into server.py, add --generate-token CLI, config token warning
 
 ### Phase 3: Streamable HTTP Transport + Session Routing
 **Goal**: Agents can connect via streamable HTTP at /mcp with correct per-session workspace isolation, and SSE is kept working but marked deprecated
@@ -60,9 +61,7 @@ Plans:
   3. stdio transport continues to work identically to pre-migration behavior
   4. Server started with `transport: sse` logs a deprecation warning on startup
   5. Stateless HTTP mode (`stateless_http=True`) can be enabled via config for load-balancer deployments
-**Plans**: 1 plan
-Plans:
-- [ ] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+**Plans**: [To be planned]
 **UI hint**: no
 
 ### Phase 4: Human-in-the-Loop Approval
@@ -75,9 +74,7 @@ Plans:
   3. Read-only tools (list_toolboxes, get_help, get_workspace) execute immediately with no approval prompt regardless of HITL settings
   4. With all HITL toggles disabled (default), no approval prompts appear and existing behavior is unchanged
   5. HITL configuration (protected functions list, toggles) is present in config.yaml with commented sensible defaults
-**Plans**: 1 plan
-Plans:
-- [ ] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+**Plans**: [To be planned]
 
 ### Phase 5: Windows 10 + Platform Hardening
 **Goal**: Server runs correctly on Windows 10 without admin rights with default loopback binding, and cross-platform validation passes on Win10, macOS, and Linux
@@ -87,9 +84,7 @@ Plans:
   1. Server starts on Windows 10 without admin rights, binding to 127.0.0.1 by default, without triggering a Windows Firewall UAC prompt
   2. All MCP tools pass on Windows 10, macOS, and Linux in CI (cross-platform test run exits green)
   3. Changing `bind_address: 0.0.0.0` in config is documented as requiring an admin-created firewall rule, and the default is loopback
-**Plans**: 1 plan
-Plans:
-- [ ] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+**Plans**: [To be planned]
 
 ### Phase 6: Documentation + Agent Onboarding
 **Goal**: Any developer can follow written guides to deploy the server on Windows 10 without admin rights and connect Claude Code, Codex CLI, or Cursor with minimal friction
@@ -99,9 +94,7 @@ Plans:
   1. A developer on a restricted Windows 10 machine can complete the deployment guide from pip install to first successful MATLAB tool call without needing admin rights
   2. Connection examples for Claude Code, Codex CLI, and Cursor are present in docs, each showing the exact config needed including `bearer_token_env_var`
   3. All doc examples use the streamable HTTP transport at `/mcp`, not SSE
-**Plans**: 1 plan
-Plans:
-- [ ] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+**Plans**: [To be planned]
 
 ## Progress
 
@@ -111,7 +104,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. FastMCP 3.0 Upgrade | 2/2 | Complete   | 2026-04-01 |
-| 2. Auth Config + Bearer Token Middleware | 0/TBD | Not started | - |
+| 2. Auth Config + Bearer Token Middleware | 0/2 | Not started | - |
 | 3. Streamable HTTP Transport + Session Routing | 0/TBD | Not started | - |
 | 4. Human-in-the-Loop Approval | 0/TBD | Not started | - |
 | 5. Windows 10 + Platform Hardening | 0/TBD | Not started | - |
