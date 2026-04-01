@@ -370,19 +370,15 @@ def create_server(config: AppConfig) -> FastMCP:
         lifespan=lifespan,
     )
 
-    # Mount monitoring routes for SSE transport
+    # Register monitoring routes for SSE transport
     if config.server.transport == "sse" and config.monitoring.enabled:
         try:
-            from starlette.routing import Mount
-            from matlab_mcp.monitoring.dashboard import create_monitoring_app
+            from matlab_mcp.monitoring.dashboard import register_monitoring_routes
 
-            monitoring_sub_app = create_monitoring_app(state)
-            mcp._additional_http_routes.append(
-                Mount("/", app=monitoring_sub_app)
-            )
-            logger.info("Monitoring routes mounted for SSE transport (/dashboard, /health)")
+            register_monitoring_routes(mcp, state)
+            logger.info("Monitoring routes registered for SSE transport (/dashboard, /health)")
         except Exception as exc:
-            logger.warning("Failed to mount monitoring routes for SSE: %s", exc)
+            logger.warning("Failed to register monitoring routes for SSE: %s", exc)
 
     # ------------------------------------------------------------------
     # Tool registrations
