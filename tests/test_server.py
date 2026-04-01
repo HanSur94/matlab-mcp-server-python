@@ -731,3 +731,62 @@ class TestCreateServerSSEMonitoring:
         cfg.custom_tools.config_file = str(custom_yaml)
         mcp = create_server(cfg)
         assert mcp is not None
+
+
+# =========================================================================
+# --generate-token CLI flag
+# =========================================================================
+
+
+class TestGenerateToken:
+    """Verify --generate-token flag prints 64-char hex token and exits 0."""
+
+    def test_generate_token_prints_and_exits(self, capsys):
+        import re
+        sys.argv = ["matlab-mcp", "--generate-token"]
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        # Token must be exactly 64 hex chars
+        tokens = re.findall(r'[0-9a-f]{64}', captured.out)
+        assert len(tokens) >= 1
+        assert "MATLAB_MCP_AUTH_TOKEN" in captured.out
+
+    def test_generate_token_format_posix(self, capsys):
+        sys.argv = ["matlab-mcp", "--generate-token"]
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert "export MATLAB_MCP_AUTH_TOKEN=" in captured.out
+
+    def test_generate_token_format_windows_cmd(self, capsys):
+        sys.argv = ["matlab-mcp", "--generate-token"]
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert "set MATLAB_MCP_AUTH_TOKEN=" in captured.out
+
+    def test_generate_token_format_powershell(self, capsys):
+        sys.argv = ["matlab-mcp", "--generate-token"]
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        assert "$env:MATLAB_MCP_AUTH_TOKEN=" in captured.out
+
+    def test_main_stdio_no_middleware(self, tmp_path: Path):
+        """stdio transport must not pass middleware kwarg to server.run()."""
+        cfg = _make_config(tmp_path, transport="stdio")
+        with (
+            patch("matlab_mcp.server.load_config", return_value=cfg),
+            patch("matlab_mcp.server.create_server") as mock_create,
+            patch("sys.argv", ["matlab-mcp"]),
+        ):
+            mock_mcp = MagicMock()
+            mock_create.return_value = mock_mcp
+
+            main()
+
+            call_kwargs = mock_mcp.run.call_args.kwargs
+            assert "middleware" not in call_kwargs
+            assert call_kwargs["transport"] == "stdio"

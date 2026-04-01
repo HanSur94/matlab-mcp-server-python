@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+import logging
+
 from matlab_mcp.config import (
     AppConfig,
     ExecutionConfig,
@@ -14,6 +16,7 @@ from matlab_mcp.config import (
     SecurityConfig,
     ServerConfig,
     SessionsConfig,
+    _warn_if_token_in_config,
     load_config,
 )
 
@@ -243,3 +246,50 @@ class TestMonitoringConfig:
         app.resolve_paths(tmp_path)
         assert Path(app.monitoring.db_path).is_absolute()
         assert str(tmp_path) in app.monitoring.db_path
+
+
+# ---------------------------------------------------------------------------
+# Token-in-config warning
+# ---------------------------------------------------------------------------
+
+
+class TestTokenWarning:
+    """Verify _warn_if_token_in_config emits warnings on token-like keys."""
+
+    def test_token_key_in_config_logs_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"security": {"auth_token": "abc123"}})
+        assert "auth_token" in caplog.text
+        assert "MATLAB_MCP_AUTH_TOKEN" in caplog.text
+
+    def test_bearer_key_in_config_logs_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"security": {"bearer_token": "xyz"}})
+        assert "bearer_token" in caplog.text
+
+    def test_api_key_in_config_logs_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"server": {"api_key": "xyz"}})
+        assert "api_key" in caplog.text
+
+    def test_normal_config_no_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"server": {"host": "0.0.0.0"}})
+        assert caplog.text == ""
+
+    def test_nested_non_dict_section_no_error(self, caplog):
+        """Sections that are not dicts (e.g. string value) should not crash."""
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"server": "string_value"})
+        # No exception raised and no warning emitted
+        assert caplog.text == ""
+
+    def test_secret_key_triggers_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"database": {"db_secret": "abc"}})
+        assert "db_secret" in caplog.text
+
+    def test_password_key_triggers_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            _warn_if_token_in_config({"database": {"admin_password": "pass"}})
+        assert "admin_password" in caplog.text
