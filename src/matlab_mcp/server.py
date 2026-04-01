@@ -103,14 +103,23 @@ class MatlabMCPServer:
         """Return session ID for the current request.
 
         For stdio transport a fixed ``"default"`` ID is used.
-        For SSE transport the context's ``session_id`` is used.
+        For SSE/streamable-HTTP the context's ``session_id`` is preferred,
+        falling back to ``client_id`` when ``session_id`` is unavailable
+        (issue #956).
         """
         transport = self.config.server.transport
-        if transport == "sse":
+        if transport in ("sse", "streamablehttp"):
             try:
                 sid = ctx.session_id
                 if sid:
                     return sid
+            except Exception:
+                pass
+            # Fallback for issue #956: try client_id when session_id unavailable
+            try:
+                cid = ctx.client_id
+                if cid:
+                    return cid
             except Exception:
                 pass
         # stdio or fallback
@@ -124,8 +133,8 @@ class MatlabMCPServer:
         """
         session = self.sessions.get_session(session_id)
         if session is None:
-            if self.config.server.transport == "sse":
-                # In SSE mode, create a session keyed to the client's session_id
+            if self.config.server.transport in ("sse", "streamablehttp"):
+                # In SSE/streamable-HTTP mode, create a per-client session
                 session = self.sessions.create_session(session_id=session_id)
             else:
                 session = self.sessions.get_or_create_default()
@@ -702,7 +711,7 @@ def main() -> None:
     parser.add_argument(
         "--transport",
         default=None,
-        choices=["stdio", "sse"],
+        choices=["stdio", "sse", "streamablehttp"],
         help="Override transport from config",
     )
     parser.add_argument(
@@ -767,6 +776,12 @@ def main() -> None:
     logger.info("  Transport:       %s", transport)
     if transport == "sse":
         logger.info("  SSE endpoint:    http://%s:%d/sse", config.server.host, config.server.port)
+        logger.warning(
+            "SSE transport is deprecated; use 'streamablehttp' instead. "
+            "SSE support will be removed in a future release."
+        )
+    elif transport == "streamablehttp":
+        logger.info("  HTTP endpoint:   http://%s:%d/mcp", config.server.host, config.server.port)
     logger.info("  Log level:       %s", config.server.log_level)
     logger.info("  Log file:        %s", config.server.log_file)
     logger.info("  Config file:     %s", config_path if config_path.exists() else "(defaults)")
@@ -801,13 +816,14 @@ def main() -> None:
     logger.info("=" * 60)
 
     # Auth status
-    if transport == "sse":
+    if transport in ("sse", "streamablehttp"):
         if os.environ.get("MATLAB_MCP_AUTH_TOKEN"):
             logger.info("  Auth:            Bearer token enabled")
         else:
             logger.warning(
-                "SSE transport enabled without MATLAB_MCP_AUTH_TOKEN set. "
-                "All HTTP requests will be accepted without authentication."
+                "%s transport enabled without MATLAB_MCP_AUTH_TOKEN set. "
+                "All HTTP requests will be accepted without authentication.",
+                transport,
             )
 
     if args.inspect:
@@ -816,7 +832,7 @@ def main() -> None:
 
     server = create_server(config)
 
-    if transport == "sse":
+    if transport in ("sse", "streamablehttp"):
         from starlette.middleware import Middleware
         from starlette.middleware.cors import CORSMiddleware
         from matlab_mcp.auth.middleware import BearerAuthMiddleware
@@ -831,11 +847,20 @@ def main() -> None:
             ),
         ]
 
-        server.run(
-            transport="sse",
-            host=config.server.host,
-            port=config.server.port,
-            middleware=middleware,
-        )
+        if transport == "streamablehttp":
+            server.run(
+                transport="streamable-http",
+                host=config.server.host,
+                port=config.server.port,
+                middleware=middleware,
+                stateless_http=config.server.stateless_http,
+            )
+        else:
+            server.run(
+                transport="sse",
+                host=config.server.host,
+                port=config.server.port,
+                middleware=middleware,
+            )
     else:
         server.run(transport="stdio", show_banner=False)
