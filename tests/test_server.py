@@ -416,7 +416,7 @@ class TestMain:
             mock_mcp.run.assert_called_once_with(transport="stdio", show_banner=False)
 
     def test_main_transport_override_sse(self, tmp_path: Path) -> None:
-        """--transport=sse should override config and run in SSE mode."""
+        """--transport=sse should override config and run in SSE mode with middleware."""
         cfg = _make_config(tmp_path, transport="stdio")
         with (
             patch("matlab_mcp.server.load_config", return_value=cfg),
@@ -430,11 +430,13 @@ class TestMain:
 
             # Config should have been mutated
             assert cfg.server.transport == "sse"
-            mock_mcp.run.assert_called_once_with(
-                transport="sse",
-                host=cfg.server.host,
-                port=cfg.server.port,
-            )
+            call_kwargs = mock_mcp.run.call_args.kwargs
+            assert call_kwargs["transport"] == "sse"
+            assert call_kwargs["host"] == cfg.server.host
+            assert call_kwargs["port"] == cfg.server.port
+            # SSE transport must wire middleware (BearerAuthMiddleware + CORSMiddleware)
+            assert "middleware" in call_kwargs
+            assert len(call_kwargs["middleware"]) == 2
 
     def test_main_config_file_arg(self, tmp_path: Path) -> None:
         """--config should pass the specified path to load_config."""
@@ -475,7 +477,7 @@ class TestMain:
             assert call_args[0][0] is None
 
     def test_main_sse_passes_host_and_port(self, tmp_path: Path) -> None:
-        """SSE transport should pass host and port from config."""
+        """SSE transport should pass host and port from config with middleware."""
         cfg = _make_config(tmp_path, transport="sse")
         cfg.server.host = "127.0.0.1"
         cfg.server.port = 9999
@@ -490,11 +492,12 @@ class TestMain:
 
             main()
 
-            mock_mcp.run.assert_called_once_with(
-                transport="sse",
-                host="127.0.0.1",
-                port=9999,
-            )
+            call_kwargs = mock_mcp.run.call_args.kwargs
+            assert call_kwargs["transport"] == "sse"
+            assert call_kwargs["host"] == "127.0.0.1"
+            assert call_kwargs["port"] == 9999
+            # SSE transport must include middleware kwarg
+            assert "middleware" in call_kwargs
 
 
 # =========================================================================

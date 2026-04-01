@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -167,14 +168,15 @@ def create_server(config: AppConfig) -> FastMCP:
         cancels background tasks, drains running jobs, and stops the
         engine pool.
         """
-        # Security warning for SSE without proxy auth
+        # Security warning for SSE without proxy auth or bearer token
         if (
             config.server.transport == "sse"
             and not config.security.require_proxy_auth
+            and not os.environ.get("MATLAB_MCP_AUTH_TOKEN")
         ):
             logger.warning(
-                "SSE transport enabled without require_proxy_auth=true. "
-                "Ensure the server is behind an authenticating reverse proxy."
+                "SSE transport enabled without authentication. "
+                "Set MATLAB_MCP_AUTH_TOKEN env var to enable bearer token auth."
             )
 
         # Create necessary directories
@@ -708,7 +710,26 @@ def main() -> None:
         action="store_true",
         help="Start in inspection mode (no MATLAB required)",
     )
+    parser.add_argument(
+        "--generate-token",
+        action="store_true",
+        help="Generate a bearer token and print env var snippet, then exit",
+    )
     args = parser.parse_args()
+
+    if args.generate_token:
+        import secrets
+        token = secrets.token_hex(32)
+        print(f"Generated MATLAB MCP auth token (64 hex chars):\n")
+        print(f"  {token}\n")
+        print(f"Set the environment variable:\n")
+        print(f"  # Linux / macOS:")
+        print(f"  export MATLAB_MCP_AUTH_TOKEN={token}\n")
+        print(f"  # Windows (cmd):")
+        print(f"  set MATLAB_MCP_AUTH_TOKEN={token}\n")
+        print(f"  # Windows (PowerShell):")
+        print(f"  $env:MATLAB_MCP_AUTH_TOKEN=\"{token}\"\n")
+        sys.exit(0)
 
     # Load config
     config_path = Path(args.config) if args.config else Path("config.yaml")
@@ -779,6 +800,16 @@ def main() -> None:
             logger.info("  Dashboard:       http://%s:%d/dashboard", config.server.host, config.server.port)
     logger.info("=" * 60)
 
+    # Auth status
+    if transport == "sse":
+        if os.environ.get("MATLAB_MCP_AUTH_TOKEN"):
+            logger.info("  Auth:            Bearer token enabled")
+        else:
+            logger.warning(
+                "SSE transport enabled without MATLAB_MCP_AUTH_TOKEN set. "
+                "All HTTP requests will be accepted without authentication."
+            )
+
     if args.inspect:
         config.pool.min_engines = 0
         config._inspect_mode = True  # type: ignore[attr-defined]
@@ -786,10 +817,25 @@ def main() -> None:
     server = create_server(config)
 
     if transport == "sse":
+        from starlette.middleware import Middleware
+        from starlette.middleware.cors import CORSMiddleware
+        from matlab_mcp.auth.middleware import BearerAuthMiddleware
+
+        middleware: list[Middleware] = [
+            Middleware(BearerAuthMiddleware),
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_methods=["GET", "POST", "OPTIONS"],
+                allow_headers=["Authorization", "Content-Type", "Accept"],
+            ),
+        ]
+
         server.run(
             transport="sse",
             host=config.server.host,
             port=config.server.port,
+            middleware=middleware,
         )
     else:
         server.run(transport="stdio", show_banner=False)
