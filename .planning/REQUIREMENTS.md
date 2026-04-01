@@ -22,7 +22,7 @@ Requirements for v2.0 milestone. Each maps to roadmap phases.
 - [x] **AUTH-03**: Invalid or missing token returns HTTP 401 with `WWW-Authenticate` header
 - [x] **AUTH-04**: CORS headers are set correctly for browser-based agent UIs
 - [x] **AUTH-05**: stdio transport bypasses authentication entirely (single-user, no auth needed)
-- [ ] **AUTH-06**: `--generate-token` CLI flag prints a ready-to-use signed token and env var snippet
+- [x] **AUTH-06**: `--generate-token` CLI flag prints a ready-to-use signed token and env var snippet
 
 ### Transport
 
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-03 | Phase 2 | Complete |
 | AUTH-04 | Phase 2 | Complete |
 | AUTH-05 | Phase 2 | Complete |
-| AUTH-06 | Phase 2 | Pending |
+| AUTH-06 | Phase 2 | Complete |
 | TRNS-01 | Phase 3 | Pending |
 | TRNS-02 | Phase 3 | Pending |
 | TRNS-03 | Phase 3 | Pending |

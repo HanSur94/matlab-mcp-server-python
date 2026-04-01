@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02-01-PLAN.md (BearerAuthMiddleware)
-last_updated: "2026-04-01T20:11:32.807Z"
+status: verifying
+stopped_at: Completed 02-02-PLAN.md (middleware wiring + config warning)
+last_updated: "2026-04-01T20:21:45.612Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 6
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 Phase: 02 (auth-config-bearer-token-middleware) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-01
 
 Progress: [░░░░░░░░░░] 0%
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 4 | 2 tasks | 4 files |
 | Phase 01 P02 | 8 | 2 tasks | 2 files |
 | Phase 02 P01 | 133 | 1 tasks | 3 files |
+| Phase 02 P02 | 600 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Pure ASGI class for BearerAuthMiddleware (not BaseHTTPMiddleware) to avoid Starlette streaming double-send bug
 - [Phase 02]: Token read at middleware __init__ time from MATLAB_MCP_AUTH_TOKEN env var, not at module import or per-request
 - [Phase 02]: hmac.compare_digest used for constant-time token comparison to prevent timing oracle attacks
+- [Phase 02]: Middleware list order: BearerAuthMiddleware outermost, CORSMiddleware inner — auth checked before CORS headers
+- [Phase 02]: _warn_if_token_in_config fires on raw YAML before env overrides to detect config file leaks
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T20:11:32.804Z
-Stopped at: Completed 02-01-PLAN.md (BearerAuthMiddleware)
+Last session: 2026-04-01T20:21:45.609Z
+Stopped at: Completed 02-02-PLAN.md (middleware wiring + config warning)
 Resume file: None
