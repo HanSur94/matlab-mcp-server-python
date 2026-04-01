@@ -207,6 +207,7 @@ class TestGetSessionId:
     ) -> None:
         ctx = MagicMock()
         ctx.session_id = ""  # empty string is falsy
+        ctx.client_id = ""  # also falsy — should fall back to default
         sid = sse_server_state._get_session_id(ctx)
         assert sid == "default"
 
@@ -215,13 +216,16 @@ class TestGetSessionId:
     ) -> None:
         ctx = MagicMock()
         ctx.session_id = None
+        ctx.client_id = None  # also None — should fall back to default
         sid = sse_server_state._get_session_id(ctx)
         assert sid == "default"
 
     def test_sse_session_id_attribute_error_falls_back(
         self, sse_server_state: MatlabMCPServer
     ) -> None:
-        ctx = _mock_context(session_id=None)  # raises AttributeError
+        # Both session_id and client_id raise AttributeError — spec class lacks both
+        ctx = _mock_context(session_id=None)  # raises AttributeError on session_id
+        # client_id also raises AttributeError (spec class lacks it)
         sid = sse_server_state._get_session_id(ctx)
         assert sid == "default"
 
@@ -329,8 +333,8 @@ class TestCreateServer:
     async def test_expected_core_tools_registered(self, stdio_config: AppConfig) -> None:
         """All core tools from the tool registration block should be present."""
         mcp = create_server(stdio_config)
-        tools = await mcp.list_tools()
-        tool_names = {t.name for t in tools}
+        tools_dict = await mcp.get_tools()
+        tool_names = set(tools_dict.keys())
         expected = {
             "execute_code",
             "check_code",
@@ -355,8 +359,8 @@ class TestCreateServer:
 
     async def test_monitoring_tools_registered(self, stdio_config: AppConfig) -> None:
         mcp = create_server(stdio_config)
-        tools = await mcp.list_tools()
-        tool_names = {t.name for t in tools}
+        tools_dict = await mcp.get_tools()
+        tool_names = set(tools_dict.keys())
         monitoring_tools = {"get_server_metrics", "get_server_health", "get_error_log"}
         for name in monitoring_tools:
             assert name in tool_names, f"Monitoring tool '{name}' not found"
@@ -364,8 +368,8 @@ class TestCreateServer:
     async def test_all_tools_count_at_least_20(self, stdio_config: AppConfig) -> None:
         """Sanity check: server should have at least 20 built-in tools."""
         mcp = create_server(stdio_config)
-        tools = await mcp.list_tools()
-        assert len(tools) >= 20
+        tools_dict = await mcp.get_tools()
+        assert len(tools_dict) >= 20
 
     def test_create_server_with_sse_transport(self, sse_config: AppConfig) -> None:
         from fastmcp import FastMCP
