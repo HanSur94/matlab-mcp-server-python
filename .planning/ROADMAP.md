@@ -12,7 +12,7 @@ This milestone upgrades a working MATLAB MCP server from FastMCP 2.x to 3.x, add
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: FastMCP 3.0 Upgrade** - Migrate the server to FastMCP 3.2.0+, resolving all breaking changes so existing tools and tests pass (completed 2026-04-01)
+- [ ] **Phase 1: FastMCP 3.0 Upgrade** - Migrate the server to FastMCP 3.2.0+, resolving all breaking changes so existing tools and tests pass
 - [ ] **Phase 2: Auth Config + Bearer Token Middleware** - Add env-var-only auth config and implement BearerTokenMiddleware with 401/403 semantics
 - [ ] **Phase 3: Streamable HTTP Transport + Session Routing** - Wire streamable HTTP at /mcp, fix session routing for HTTP transport, add --generate-token CLI flag
 - [ ] **Phase 4: Human-in-the-Loop Approval** - Add configurable HITL gates for protected functions and file operations using FastMCP 3.0 elicitation API
@@ -31,9 +31,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Monitoring dashboard loads via the migrated `@mcp.custom_route()` pattern
   4. Regression test suite passes end-to-end under FastMCP 3.2.0 with no skipped tests
   5. `from fastmcp import Context` and all updated import paths resolve without ImportError
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
 - [x] 01-01-PLAN.md — Upgrade FastMCP dependency to 3.2.0, fix tests, suppress stdio banner
+- [ ] 01-02-PLAN.md — Migrate monitoring routes from private _additional_http_routes to @mcp.custom_route() (gap closure)
 
 ### Phase 2: Auth Config + Bearer Token Middleware
 **Goal**: Bearer token authentication is enforced on HTTP/SSE transports via middleware, with tokens sourced exclusively from environment variables
@@ -109,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. FastMCP 3.0 Upgrade | 1/1 | Complete   | 2026-04-01 |
+| 1. FastMCP 3.0 Upgrade | 1/2 | Gap closure   | - |
 | 2. Auth Config + Bearer Token Middleware | 0/TBD | Not started | - |
 | 3. Streamable HTTP Transport + Session Routing | 0/TBD | Not started | - |
 | 4. Human-in-the-Loop Approval | 0/TBD | Not started | - |
