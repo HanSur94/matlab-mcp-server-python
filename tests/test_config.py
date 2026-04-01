@@ -202,6 +202,41 @@ class TestValidation:
 
 
 # ---------------------------------------------------------------------------
+# Streamable HTTP transport configuration (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+class TestStreamableHttpConfig:
+    """Tests for streamable HTTP transport config (Phase 3)."""
+
+    def test_stateless_http_defaults_to_false(self):
+        cfg = ServerConfig()
+        assert cfg.stateless_http is False
+
+    def test_stateless_http_can_be_set_true(self):
+        cfg = ServerConfig(stateless_http=True)
+        assert cfg.stateless_http is True
+
+    def test_transport_accepts_streamablehttp(self):
+        cfg = ServerConfig(transport="streamablehttp")
+        assert cfg.transport == "streamablehttp"
+
+    def test_transport_rejects_unknown_value(self):
+        with pytest.raises(Exception):
+            ServerConfig(transport="websocket")
+
+    def test_stateless_http_env_override(self, monkeypatch):
+        monkeypatch.setenv("MATLAB_MCP_SERVER_STATELESS_HTTP", "true")
+        cfg = load_config(None)
+        assert cfg.server.stateless_http is True
+
+    def test_transport_env_override_streamablehttp(self, monkeypatch):
+        monkeypatch.setenv("MATLAB_MCP_SERVER_TRANSPORT", "streamablehttp")
+        cfg = load_config(None)
+        assert cfg.server.transport == "streamablehttp"
+
+
+# ---------------------------------------------------------------------------
 # Monitoring configuration
 # ---------------------------------------------------------------------------
 
