@@ -9,11 +9,11 @@ Requirements for v2.0 milestone. Each maps to roadmap phases.
 
 ### FastMCP Upgrade
 
-- [ ] **FMCP-01**: Server runs on FastMCP 3.2.0+ with all breaking changes resolved
-- [ ] **FMCP-02**: All existing MCP tools pass regression tests after upgrade
-- [ ] **FMCP-03**: Monitoring dashboard migrated to FastMCP 3.x `@custom_route()` pattern
-- [ ] **FMCP-04**: Constructor kwargs and `run()` parameters updated to 3.x API
-- [ ] **FMCP-05**: Import paths updated (`from fastmcp import Context` etc.)
+- [x] **FMCP-01**: Server runs on FastMCP 3.2.0+ with all breaking changes resolved
+- [x] **FMCP-02**: All existing MCP tools pass regression tests after upgrade
+- [x] **FMCP-03**: Monitoring dashboard migrated to FastMCP 3.x `@custom_route()` pattern
+- [x] **FMCP-04**: Constructor kwargs and `run()` parameters updated to 3.x API
+- [x] **FMCP-05**: Import paths updated (`from fastmcp import Context` etc.)
 
 ### Authentication
 
@@ -78,11 +78,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FMCP-01 | Phase 1 | Pending |
-| FMCP-02 | Phase 1 | Pending |
-| FMCP-03 | Phase 1 | Pending |
-| FMCP-04 | Phase 1 | Pending |
-| FMCP-05 | Phase 1 | Pending |
+| FMCP-01 | Phase 1 | Complete |
+| FMCP-02 | Phase 1 | Complete |
+| FMCP-03 | Phase 1 | Complete |
+| FMCP-04 | Phase 1 | Complete |
+| FMCP-05 | Phase 1 | Complete |
 | AUTH-01 | Phase 2 | Pending |
 | AUTH-02 | Phase 2 | Pending |
 | AUTH-03 | Phase 2 | Pending |
