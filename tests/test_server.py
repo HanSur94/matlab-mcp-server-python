@@ -666,9 +666,11 @@ class TestMainAdditionalBranches:
             mock_mcp = MagicMock()
             mock_create.return_value = mock_mcp
             main()
-            mock_mcp.run.assert_called_once_with(
-                transport="sse", host="0.0.0.0", port=8080,
-            )
+            call_kwargs = mock_mcp.run.call_args.kwargs
+            assert call_kwargs["transport"] == "sse"
+            assert call_kwargs["host"] == "0.0.0.0"
+            assert call_kwargs["port"] == 8080
+            assert "middleware" in call_kwargs
 
     def test_main_sse_without_transport_override(self, tmp_path: Path) -> None:
         """main() with SSE config but no --transport flag should use config transport."""
@@ -683,9 +685,11 @@ class TestMainAdditionalBranches:
             mock_mcp = MagicMock()
             mock_create.return_value = mock_mcp
             main()
-            mock_mcp.run.assert_called_once_with(
-                transport="sse", host="localhost", port=3000,
-            )
+            call_kwargs = mock_mcp.run.call_args.kwargs
+            assert call_kwargs["transport"] == "sse"
+            assert call_kwargs["host"] == "localhost"
+            assert call_kwargs["port"] == 3000
+            assert "middleware" in call_kwargs
 
     def test_main_log_file_directory_creation_failure(self, tmp_path: Path) -> None:
         """If log file dir can't be created, main should still proceed."""

@@ -222,6 +222,33 @@ def _apply_env_overrides(data: dict) -> dict:
     return data
 
 
+_SENSITIVE_KEY_PATTERNS = {"token", "secret", "api_key", "password", "bearer"}
+
+
+def _warn_if_token_in_config(data: dict) -> None:
+    """Emit WARNING if config YAML contains keys that look like secrets.
+
+    Auth tokens must be set via MATLAB_MCP_AUTH_TOKEN env var, never in
+    config.yaml. This catches accidental inclusion.
+
+    Parameters
+    ----------
+    data : dict
+        The raw config dict (typically loaded from YAML).
+    """
+    for section, section_data in data.items():
+        if not isinstance(section_data, dict):
+            continue
+        for key in section_data:
+            if any(pat in key.lower() for pat in _SENSITIVE_KEY_PATTERNS):
+                logger.warning(
+                    "Config key '%s.%s' looks like a secret. "
+                    "Auth tokens must be set via MATLAB_MCP_AUTH_TOKEN env var, "
+                    "not config.yaml.",
+                    section, key,
+                )
+
+
 def load_config(path: Optional[Path] = None) -> AppConfig:
     """Load application config from a YAML file with env var overrides.
 
@@ -243,6 +270,7 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
         else:
             logger.warning("Config file not found: %s — using defaults", path)
 
+    _warn_if_token_in_config(data)
     data = _apply_env_overrides(data)
     config = AppConfig.model_validate(data)
     config.resolve_paths(config_dir)
