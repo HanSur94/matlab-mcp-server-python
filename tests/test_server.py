@@ -329,8 +329,8 @@ class TestCreateServer:
     async def test_expected_core_tools_registered(self, stdio_config: AppConfig) -> None:
         """All core tools from the tool registration block should be present."""
         mcp = create_server(stdio_config)
-        tools_dict = await mcp._tool_manager.get_tools()
-        tool_names = set(tools_dict.keys())
+        tools = await mcp.list_tools()
+        tool_names = {t.name for t in tools}
         expected = {
             "execute_code",
             "check_code",
@@ -355,8 +355,8 @@ class TestCreateServer:
 
     async def test_monitoring_tools_registered(self, stdio_config: AppConfig) -> None:
         mcp = create_server(stdio_config)
-        tools_dict = await mcp._tool_manager.get_tools()
-        tool_names = set(tools_dict.keys())
+        tools = await mcp.list_tools()
+        tool_names = {t.name for t in tools}
         monitoring_tools = {"get_server_metrics", "get_server_health", "get_error_log"}
         for name in monitoring_tools:
             assert name in tool_names, f"Monitoring tool '{name}' not found"
@@ -364,8 +364,8 @@ class TestCreateServer:
     async def test_all_tools_count_at_least_20(self, stdio_config: AppConfig) -> None:
         """Sanity check: server should have at least 20 built-in tools."""
         mcp = create_server(stdio_config)
-        tools_dict = await mcp._tool_manager.get_tools()
-        assert len(tools_dict) >= 20
+        tools = await mcp.list_tools()
+        assert len(tools) >= 20
 
     def test_create_server_with_sse_transport(self, sse_config: AppConfig) -> None:
         from fastmcp import FastMCP
@@ -413,7 +413,7 @@ class TestMain:
             main()
 
             mock_create.assert_called_once_with(cfg)
-            mock_mcp.run.assert_called_once_with(transport="stdio")
+            mock_mcp.run.assert_called_once_with(transport="stdio", show_banner=False)
 
     def test_main_transport_override_sse(self, tmp_path: Path) -> None:
         """--transport=sse should override config and run in SSE mode."""
@@ -648,7 +648,7 @@ class TestMainAdditionalBranches:
             mock_mcp = MagicMock()
             mock_create.return_value = mock_mcp
             main()
-            mock_mcp.run.assert_called_once_with(transport="stdio")
+            mock_mcp.run.assert_called_once_with(transport="stdio", show_banner=False)
 
     def test_main_monitoring_enabled_sse(self, tmp_path: Path) -> None:
         """main() with monitoring enabled + SSE logs different dashboard URL."""
