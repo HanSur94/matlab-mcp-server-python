@@ -796,4 +796,4 @@ def main() -> None:
             port=config.server.port,
         )
     else:
-        server.run(transport="stdio")
+        server.run(transport="stdio", show_banner=False)
