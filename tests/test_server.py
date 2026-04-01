@@ -794,3 +794,175 @@ class TestGenerateToken:
             call_kwargs = mock_mcp.run.call_args.kwargs
             assert "middleware" not in call_kwargs
             assert call_kwargs["transport"] == "stdio"
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Streamable HTTP transport fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def streamablehttp_config(tmp_path: Path) -> AppConfig:
+    """AppConfig configured for streamable HTTP transport."""
+    return _make_config(tmp_path, transport="streamablehttp")
+
+
+@pytest.fixture
+def streamablehttp_server_state(streamablehttp_config: AppConfig) -> MatlabMCPServer:
+    """A MatlabMCPServer instance configured for streamable HTTP transport."""
+    return MatlabMCPServer(streamablehttp_config)
+
+
+# =========================================================================
+# Phase 3: Streamable HTTP transport tests
+# =========================================================================
+
+
+class TestStreamableHTTPTransport:
+    """Phase 3: Streamable HTTP transport tests."""
+
+    def test_get_session_id_streamablehttp_uses_ctx_session_id(
+        self, streamablehttp_server_state: MatlabMCPServer
+    ) -> None:
+        ctx = MagicMock()
+        ctx.session_id = "http-sess-abc"
+        sid = streamablehttp_server_state._get_session_id(ctx)
+        assert sid == "http-sess-abc"
+
+    def test_get_session_id_streamablehttp_falls_back_to_client_id(
+        self, streamablehttp_server_state: MatlabMCPServer
+    ) -> None:
+        ctx = MagicMock()
+        type(ctx).session_id = property(lambda self: (_ for _ in ()).throw(RuntimeError("no session")))
+        ctx.client_id = "client-xyz"
+        sid = streamablehttp_server_state._get_session_id(ctx)
+        assert sid == "client-xyz"
+
+    def test_get_session_id_streamablehttp_falls_back_to_default(
+        self, streamablehttp_server_state: MatlabMCPServer
+    ) -> None:
+        ctx = MagicMock()
+        type(ctx).session_id = property(lambda self: (_ for _ in ()).throw(RuntimeError))
+        type(ctx).client_id = property(lambda self: (_ for _ in ()).throw(RuntimeError))
+        sid = streamablehttp_server_state._get_session_id(ctx)
+        default = streamablehttp_server_state.sessions.get_or_create_default()
+        assert sid == default.session_id
+
+    def test_get_temp_dir_streamablehttp_creates_session(
+        self, streamablehttp_server_state: MatlabMCPServer
+    ) -> None:
+        td = streamablehttp_server_state._get_temp_dir("new-http-sess")
+        assert td  # non-empty string
+        session = streamablehttp_server_state.sessions.get_session("new-http-sess")
+        assert session is not None
+
+    def test_session_isolation_two_http_sessions_get_different_dirs(
+        self, streamablehttp_server_state: MatlabMCPServer
+    ) -> None:
+        dir_a = streamablehttp_server_state._get_temp_dir("sess-a")
+        dir_b = streamablehttp_server_state._get_temp_dir("sess-b")
+        assert dir_a != dir_b
+
+    def test_streamablehttp_config_calls_run_with_streamable_http(
+        self, tmp_path: Path
+    ) -> None:
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text("server:\n  transport: streamablehttp\n")
+        with patch("matlab_mcp.server.create_server") as mock_create, \
+             patch("sys.argv", ["matlab-mcp", "--config", str(cfg_file)]):
+            mock_server = MagicMock()
+            mock_create.return_value = mock_server
+            main()
+            mock_server.run.assert_called_once()
+            call_kwargs = mock_server.run.call_args
+            assert (
+                call_kwargs.kwargs.get("transport") == "streamable-http"
+                or (call_kwargs.args and call_kwargs.args[0] == "streamable-http")
+            )
+
+    def test_streamablehttp_passes_stateless_http_true(
+        self, tmp_path: Path
+    ) -> None:
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text("server:\n  transport: streamablehttp\n  stateless_http: true\n")
+        with patch("matlab_mcp.server.create_server") as mock_create, \
+             patch("sys.argv", ["matlab-mcp", "--config", str(cfg_file)]):
+            mock_server = MagicMock()
+            mock_create.return_value = mock_server
+            main()
+            call_kwargs = mock_server.run.call_args
+            assert call_kwargs.kwargs.get("stateless_http") is True
+
+    def test_main_transport_override_streamablehttp(self, tmp_path: Path) -> None:
+        """--transport streamablehttp CLI flag sets config and calls streamable-http run."""
+        cfg = _make_config(tmp_path, transport="stdio")
+        with (
+            patch("matlab_mcp.server.load_config", return_value=cfg),
+            patch("matlab_mcp.server.create_server") as mock_create,
+            patch("sys.argv", ["matlab-mcp", "--transport", "streamablehttp"]),
+        ):
+            mock_mcp = MagicMock()
+            mock_create.return_value = mock_mcp
+            main()
+            assert cfg.server.transport == "streamablehttp"
+            call_kwargs = mock_mcp.run.call_args
+            assert call_kwargs.kwargs.get("transport") == "streamable-http"
+
+    def test_streamablehttp_auth_warning_no_token(self, tmp_path: Path) -> None:
+        """Auth warning fires for streamablehttp when no MATLAB_MCP_AUTH_TOKEN is set."""
+        cfg = _make_config(tmp_path, transport="streamablehttp")
+        with (
+            patch("matlab_mcp.server.load_config", return_value=cfg),
+            patch("matlab_mcp.server.create_server") as mock_create,
+            patch("matlab_mcp.server.logger") as mock_logger,
+            patch("sys.argv", ["matlab-mcp"]),
+            patch.dict("os.environ", {}, clear=False),
+        ):
+            import os
+            os.environ.pop("MATLAB_MCP_AUTH_TOKEN", None)
+            mock_mcp = MagicMock()
+            mock_create.return_value = mock_mcp
+            main()
+            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("auth" in w.lower() or "token" in w.lower() for w in warning_calls), \
+                f"No auth warning found in: {warning_calls}"
+
+    def test_streamablehttp_dashboard_url_logged(self, tmp_path: Path) -> None:
+        """Dashboard URL is logged for streamablehttp transport when monitoring enabled."""
+        cfg = _make_config(tmp_path, transport="streamablehttp", monitoring_enabled=True)
+        cfg.server.host = "127.0.0.1"
+        cfg.server.port = 8765
+        with (
+            patch("matlab_mcp.server.load_config", return_value=cfg),
+            patch("matlab_mcp.server.create_server") as mock_create,
+            patch("matlab_mcp.server.logger") as mock_logger,
+            patch("sys.argv", ["matlab-mcp"]),
+        ):
+            mock_mcp = MagicMock()
+            mock_create.return_value = mock_mcp
+            main()
+            info_calls = [str(c) for c in mock_logger.info.call_args_list]
+            assert any("dashboard" in c.lower() for c in info_calls), \
+                f"No dashboard URL found in: {info_calls}"
+
+
+# =========================================================================
+# Phase 3: SSE deprecation warning test
+# =========================================================================
+
+
+class TestSSEDeprecationWarning:
+    """Verify SSE transport emits a deprecation warning at startup."""
+
+    def test_sse_startup_logs_deprecation_warning(self, tmp_path: Path) -> None:
+        cfg_file = tmp_path / "config.yaml"
+        cfg_file.write_text("server:\n  transport: sse\n")
+        with patch("matlab_mcp.server.create_server") as mock_create, \
+             patch("matlab_mcp.server.logger") as mock_logger, \
+             patch("sys.argv", ["matlab-mcp", "--config", str(cfg_file)]):
+            mock_server = MagicMock()
+            mock_create.return_value = mock_server
+            main()
+            warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("deprecated" in w.lower() for w in warning_calls), \
+                f"No deprecation warning found in: {warning_calls}"
