@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 01-01-PLAN.md (FastMCP 3.2.0 upgrade)
-last_updated: "2026-04-01T19:38:45.186Z"
+stopped_at: Completed 01-02-PLAN.md (FMCP-03 gap closure)
+last_updated: "2026-04-01T19:50:34.353Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 2
+  completed_plans: 2
   percent: 0
 ---
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 4 | 2 tasks | 4 files |
+| Phase 01 P02 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - Win10 no-admin as hard constraint: Default bind to 127.0.0.1 to avoid Firewall UAC
 - [Phase 01]: Use await mcp.list_tools() instead of private _tool_manager.get_tools() for tool listing in tests (FastMCP 3.2.0 public API)
 - [Phase 01]: Add show_banner=False to stdio run() call to prevent FastMCP 3.x startup banner from corrupting MCP stdio protocol stream
+- [Phase 01]: Keep create_monitoring_app() intact alongside register_monitoring_routes() for test compatibility
+- [Phase 01]: Use @mcp.custom_route() for monitoring routes with FileResponse static handler and path-traversal protection
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T19:38:45.183Z
-Stopped at: Completed 01-01-PLAN.md (FastMCP 3.2.0 upgrade)
+Last session: 2026-04-01T19:50:34.351Z
+Stopped at: Completed 01-02-PLAN.md (FMCP-03 gap closure)
 Resume file: None
