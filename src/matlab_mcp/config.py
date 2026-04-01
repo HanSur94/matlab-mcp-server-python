@@ -22,13 +22,14 @@ class ServerConfig(BaseModel):
     """General server settings (name, transport, host/port, logging, drain)."""
 
     name: str = "matlab-mcp-server"
-    transport: Literal["stdio", "sse"] = "stdio"
+    transport: Literal["stdio", "sse", "streamablehttp"] = "stdio"
     host: str = "0.0.0.0"
     port: int = 8765
     log_level: Literal["debug", "info", "warning", "error"] = "info"
     log_file: str = "./logs/server.log"
     result_dir: str = "./results"
     drain_timeout_seconds: int = 300
+    stateless_http: bool = False
 
 
 class PoolConfig(BaseModel):
