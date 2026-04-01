@@ -1,0 +1,116 @@
+# Requirements: MATLAB MCP Server v2.0
+
+**Defined:** 2026-04-01
+**Core Value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
+
+## v1 Requirements
+
+Requirements for v2.0 milestone. Each maps to roadmap phases.
+
+### FastMCP Upgrade
+
+- [ ] **FMCP-01**: Server runs on FastMCP 3.2.0+ with all breaking changes resolved
+- [ ] **FMCP-02**: All existing MCP tools pass regression tests after upgrade
+- [ ] **FMCP-03**: Monitoring dashboard migrated to FastMCP 3.x `@custom_route()` pattern
+- [ ] **FMCP-04**: Constructor kwargs and `run()` parameters updated to 3.x API
+- [ ] **FMCP-05**: Import paths updated (`from fastmcp import Context` etc.)
+
+### Authentication
+
+- [ ] **AUTH-01**: Server accepts bearer token via `Authorization: Bearer <token>` header on HTTP transport
+- [ ] **AUTH-02**: Auth token is configured exclusively via `MATLAB_MCP_AUTH_TOKEN` environment variable (never in config.yaml)
+- [ ] **AUTH-03**: Invalid or missing token returns HTTP 401 with `WWW-Authenticate` header
+- [ ] **AUTH-04**: CORS headers are set correctly for browser-based agent UIs
+- [ ] **AUTH-05**: stdio transport bypasses authentication entirely (single-user, no auth needed)
+- [ ] **AUTH-06**: `--generate-token` CLI flag prints a ready-to-use signed token and env var snippet
+
+### Transport
+
+- [ ] **TRNS-01**: Server supports streamable HTTP transport at `/mcp` endpoint
+- [ ] **TRNS-02**: stdio transport continues to work unchanged with no auth
+- [ ] **TRNS-03**: SSE transport logs a deprecation warning when selected
+- [ ] **TRNS-04**: Stateless HTTP mode available for load-balancer-friendly deployments
+- [ ] **TRNS-05**: Session routing works correctly on HTTP transport (`ctx.session_id` fallback to `ctx.client_id`)
+
+### Human-in-the-Loop
+
+- [ ] **HITL-01**: Configurable list of always-protected functions that require human approval before execution
+- [ ] **HITL-02**: Optional HITL toggle for all `execute_code` calls (off by default, configurable per deployment)
+- [ ] **HITL-03**: File operations (upload, delete, write) can require human approval (configurable toggle)
+- [ ] **HITL-04**: Safe read-only tools (`list_toolboxes`, `get_help`, `get_workspace`, etc.) run without approval
+- [ ] **HITL-05**: HITL uses FastMCP 3.0 elicitation API to request approval from the client/agent
+- [ ] **HITL-06**: HITL configuration is part of config.yaml with sensible defaults (protected functions list, toggles)
+
+### Platform & Hardening
+
+- [ ] **PLAT-01**: Server runs on Windows 10 without admin rights (user-space ports, loopback-only default)
+- [ ] **PLAT-02**: Default HTTP bind address is `127.0.0.1` (avoids Windows Firewall UAC prompt)
+- [ ] **PLAT-03**: Cross-platform validation passes on Windows 10, macOS, and Linux
+- [ ] **PLAT-04**: Windows 10 deployment guide with step-by-step instructions for restricted machines
+- [ ] **PLAT-05**: Agent onboarding docs with connection examples for Claude Code, Codex CLI, and Cursor
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Advanced Auth
+
+- **AAUTH-01**: Per-tool scope enforcement (`execute` vs `admin` scopes)
+- **AAUTH-02**: Token rotation without server restart (hot-reload from file or endpoint)
+- **AAUTH-03**: Agent-readable 401 JSON body with docs URL for self-documenting onboarding
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| OAuth 2.1 / PKCE flow | CLI agents can't handle browser redirects; static bearer tokens are spec-compliant for internal tools |
+| Dynamic Client Registration (CIMD) | Coding agents are CLIs, not HTTPS servers; CIMD is server-to-server |
+| mTLS (mutual TLS) | Agents don't support client certs; use reverse proxy for TLS if needed |
+| GUI token management dashboard | Agents read tokens from env vars, not dashboards; adds frontend complexity for no benefit |
+| Per-user OAuth identity mapping | Requires identity provider beyond v2 scope; session_id already handles workspace isolation |
+| Persistent SSE as primary transport | SSE deprecated in MCP spec April 2026; keep existing SSE working but don't invest further |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FMCP-01 | Pending | Pending |
+| FMCP-02 | Pending | Pending |
+| FMCP-03 | Pending | Pending |
+| FMCP-04 | Pending | Pending |
+| FMCP-05 | Pending | Pending |
+| AUTH-01 | Pending | Pending |
+| AUTH-02 | Pending | Pending |
+| AUTH-03 | Pending | Pending |
+| AUTH-04 | Pending | Pending |
+| AUTH-05 | Pending | Pending |
+| AUTH-06 | Pending | Pending |
+| TRNS-01 | Pending | Pending |
+| TRNS-02 | Pending | Pending |
+| TRNS-03 | Pending | Pending |
+| TRNS-04 | Pending | Pending |
+| TRNS-05 | Pending | Pending |
+| HITL-01 | Pending | Pending |
+| HITL-02 | Pending | Pending |
+| HITL-03 | Pending | Pending |
+| HITL-04 | Pending | Pending |
+| HITL-05 | Pending | Pending |
+| HITL-06 | Pending | Pending |
+| PLAT-01 | Pending | Pending |
+| PLAT-02 | Pending | Pending |
+| PLAT-03 | Pending | Pending |
+| PLAT-04 | Pending | Pending |
+| PLAT-05 | Pending | Pending |
+
+**Coverage:**
+- v1 requirements: 27 total
+- Mapped to phases: 0
+- Unmapped: 27 ⚠️
+
+---
+*Requirements defined: 2026-04-01*
+*Last updated: 2026-04-01 after initial definition*
