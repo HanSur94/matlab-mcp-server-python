@@ -63,8 +63,8 @@ Plans:
   5. Stateless HTTP mode (`stateless_http=True`) can be enabled via config for load-balancer deployments
 **Plans**: 2 plans
 Plans:
-- [ ] 03-01-PLAN.md — Add streamablehttp transport value and stateless_http field to ServerConfig
-- [ ] 03-02-PLAN.md — Wire streamable HTTP transport into server.py with session routing and SSE deprecation
+- [x] 03-01-PLAN.md — Add streamablehttp transport value and stateless_http field to ServerConfig
+- [x] 03-02-PLAN.md — Wire streamable HTTP transport into server.py with session routing and SSE deprecation
 
 ### Phase 4: Human-in-the-Loop Approval
 **Goal**: Operators can configure approval gates that pause dangerous operations until a human confirms, using the FastMCP 3.0 elicitation API
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. FastMCP 3.0 Upgrade | 2/2 | Complete   | 2026-04-01 |
 | 2. Auth Config + Bearer Token Middleware | 1/2 | In Progress|  |
-| 3. Streamable HTTP Transport + Session Routing | 0/2 | Planned    |  |
+| 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
 | 4. Human-in-the-Loop Approval | 0/TBD | Not started | - |
 | 5. Windows 10 + Platform Hardening | 0/TBD | Not started | - |
 | 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |

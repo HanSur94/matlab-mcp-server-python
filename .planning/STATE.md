@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-01-PLAN.md (streamablehttp transport config)
-last_updated: "2026-04-01T21:11:58.808Z"
+status: ready_for_verification
+stopped_at: Completed 03-02-PLAN.md (streamablehttp transport and session routing)
+last_updated: "2026-04-01T21:27:00.000Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 67
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 Phase: 03 (streamable-http-transport-session-routing) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-01
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02 P01 | 133 | 1 tasks | 3 files |
 | Phase 02 P02 | 600 | 2 tasks | 4 files |
 | Phase 03 P01 | 1 | 1 tasks | 2 files |
+| Phase 03 P02 | 6 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,10 @@ Recent decisions affecting current work:
 - [Phase 02]: Middleware list order: BearerAuthMiddleware outermost, CORSMiddleware inner — auth checked before CORS headers
 - [Phase 02]: _warn_if_token_in_config fires on raw YAML before env overrides to detect config file leaks
 - [Phase 03]: No changes to _apply_env_overrides needed — existing bool coercion handles stateless_http automatically
+- [Phase 03]: client_id fallback applies to both SSE and streamablehttp (both are HTTP transports)
+- [Phase 03]: SSE deprecation warning placed in startup banner before server.run() for visibility
+- [Phase 03]: config value 'streamablehttp' maps to FastMCP 'streamable-http' in server.run() call
+- [Phase 03]: stateless_http only forwarded for streamablehttp; NOT passed to SSE (FastMCP raises ValueError)
 
 ### Pending Todos
 
@@ -90,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T21:11:58.804Z
-Stopped at: Completed 03-01-PLAN.md (streamablehttp transport config)
+Last session: 2026-04-01T21:27:00.000Z
+Stopped at: Completed 03-02-PLAN.md (streamablehttp transport and session routing)
 Resume file: None
