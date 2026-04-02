@@ -13,9 +13,11 @@ from __future__ import annotations
 import base64
 import logging
 from pathlib import Path
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from fastmcp.utilities.types import Image
+
+from matlab_mcp.hitl.gate import request_file_approval
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,9 @@ async def upload_data_impl(
     session_temp_dir: str,
     security: Any,
     max_size_mb: int = _DEFAULT_MAX_SIZE_MB,
+    ctx: Optional[Any] = None,
+    hitl_config: Optional[Any] = None,
+    session_id: str = "",
 ) -> dict:
     """Upload a file to the session's temporary directory.
 
@@ -44,11 +49,18 @@ async def upload_data_impl(
         A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
     max_size_mb:
         Maximum allowed file size in megabytes.
+    ctx:
+        Optional FastMCP request context used for HITL elicitation.
+    hitl_config:
+        Optional :class:`~matlab_mcp.config.HITLConfig` instance.
+    session_id:
+        Session identifier used in HITL audit logging.
 
     Returns
     -------
     dict
         Result dict with ``status``, ``filename``, ``path``, and ``size_bytes``.
+        On HITL denial returns ``{"status": "denied", "message": ...}``.
     """
     # Validate filename
     try:
@@ -58,6 +70,18 @@ async def upload_data_impl(
             "status": "error",
             "message": f"Invalid filename: {exc}",
         }
+
+    # HITL file operation gate (after filename validation, before write)
+    if ctx is not None and hitl_config is not None:
+        denied = await request_file_approval(
+            operation="upload",
+            filename=safe_name,
+            session_id=session_id,
+            ctx=ctx,
+            hitl_config=hitl_config,
+        )
+        if denied is not None:
+            return denied
 
     # Decode base64 content
     try:
@@ -104,6 +128,9 @@ async def delete_file_impl(
     filename: str,
     session_temp_dir: str,
     security: Any,
+    ctx: Optional[Any] = None,
+    hitl_config: Optional[Any] = None,
+    session_id: str = "",
 ) -> dict:
     """Delete a file from the session's temporary directory.
 
@@ -115,11 +142,18 @@ async def delete_file_impl(
         Path to the session's temporary directory.
     security:
         A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+    ctx:
+        Optional FastMCP request context used for HITL elicitation.
+    hitl_config:
+        Optional :class:`~matlab_mcp.config.HITLConfig` instance.
+    session_id:
+        Session identifier used in HITL audit logging.
 
     Returns
     -------
     dict
         Result dict with ``status`` and ``filename``.
+        On HITL denial returns ``{"status": "denied", "message": ...}``.
     """
     # Validate filename
     try:
@@ -129,6 +163,18 @@ async def delete_file_impl(
             "status": "error",
             "message": f"Invalid filename: {exc}",
         }
+
+    # HITL file operation gate (after filename validation, before delete)
+    if ctx is not None and hitl_config is not None:
+        denied = await request_file_approval(
+            operation="delete",
+            filename=safe_name,
+            session_id=session_id,
+            ctx=ctx,
+            hitl_config=hitl_config,
+        )
+        if denied is not None:
+            return denied
 
     target = Path(session_temp_dir) / safe_name
 

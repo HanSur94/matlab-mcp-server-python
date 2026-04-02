@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from matlab_mcp.hitl.gate import request_execute_approval
 from matlab_mcp.security.validator import BlockedFunctionError
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ async def execute_code_impl(
     executor: Any,
     security: Any,
     temp_dir: Optional[str] = None,
+    ctx: Optional[Any] = None,
+    hitl_config: Optional[Any] = None,
 ) -> dict:
     """Execute MATLAB code with security check.
 
@@ -36,12 +39,21 @@ async def execute_code_impl(
         A :class:`~matlab_mcp.jobs.executor.JobExecutor` instance.
     security:
         A :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+    temp_dir:
+        Optional temporary directory path for the session.
+    ctx:
+        Optional FastMCP request context used for HITL elicitation.
+    hitl_config:
+        Optional :class:`~matlab_mcp.config.HITLConfig` instance.
+        When provided alongside ``ctx``, the HITL gate is evaluated before
+        execution.
 
     Returns
     -------
     dict
         Result dict with at minimum ``status`` and ``job_id`` keys.
         On security violation returns ``{"status": "failed", "error": {...}}``.
+        On HITL denial returns ``{"status": "denied", "message": ...}``.
     """
     # Check security blocklist first
     try:
@@ -56,6 +68,17 @@ async def execute_code_impl(
                 "stack_trace": None,
             },
         }
+
+    # HITL approval gate (after security check, before execution)
+    if ctx is not None and hitl_config is not None:
+        denied = await request_execute_approval(
+            code=code,
+            session_id=session_id,
+            ctx=ctx,
+            hitl_config=hitl_config,
+        )
+        if denied is not None:
+            return denied
 
     # Delegate to executor
     return await executor.execute(session_id=session_id, code=code, temp_dir=temp_dir)

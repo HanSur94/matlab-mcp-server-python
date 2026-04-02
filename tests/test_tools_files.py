@@ -1,4 +1,4 @@
-"""Tests for file management tools: upload, delete, list, and uncovered read paths.
+"""Tests for file management tools: upload, delete, list, read paths, and HITL gates.
 
 Covers the lines in tools/files.py not exercised by test_file_read.py:
 - upload_data_impl  (lines 54-95)
@@ -14,11 +14,11 @@ import base64
 import struct
 import zlib
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from matlab_mcp.config import SecurityConfig
+from matlab_mcp.config import HITLConfig, SecurityConfig
 from matlab_mcp.security.validator import SecurityValidator
 from matlab_mcp.tools.files import (
     delete_file_impl,
@@ -552,3 +552,99 @@ class TestReadImageAdditionalPaths:
         assert isinstance(result, dict)
         assert result["status"] == "error"
         assert "Invalid filename" in result["message"]
+
+
+# ===========================================================================
+# HITL integration tests for upload_data_impl and delete_file_impl
+# ===========================================================================
+
+
+def _make_declined_ctx() -> MagicMock:
+    """Return a mock ctx whose elicit() returns a DeclinedElicitation."""
+    from fastmcp.server.context import DeclinedElicitation
+
+    declined = MagicMock(spec=DeclinedElicitation)
+    ctx = MagicMock()
+    ctx.elicit = AsyncMock(return_value=declined)
+    return ctx
+
+
+def _make_accepted_ctx(approved: bool) -> MagicMock:
+    """Return a mock ctx whose elicit() returns an AcceptedElicitation."""
+    from fastmcp.server.context import AcceptedElicitation
+    from matlab_mcp.hitl.gate import HumanApproval
+
+    accepted = MagicMock(spec=AcceptedElicitation)
+    accepted.data = HumanApproval(approved=approved)
+    ctx = MagicMock()
+    ctx.elicit = AsyncMock(return_value=accepted)
+    return ctx
+
+
+class TestFileOpsHITL:
+    """Integration tests for HITL gate wired into upload_data_impl and delete_file_impl."""
+
+    async def test_upload_hitl_disabled(
+        self, security: SecurityValidator, tmp_session_dir: str
+    ) -> None:
+        """With HITL disabled (default), upload proceeds and ctx.elicit is not called."""
+        payload = b"some data"
+        ctx = MagicMock()
+        ctx.elicit = AsyncMock()
+
+        result = await upload_data_impl(
+            filename="data.csv",
+            content_base64=base64.b64encode(payload).decode("ascii"),
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(),
+        )
+
+        ctx.elicit.assert_not_called()
+        assert result["status"] == "ok"
+
+    async def test_upload_hitl_denied(
+        self, security: SecurityValidator, tmp_session_dir: str
+    ) -> None:
+        """With protect_file_ops=True and declined elicitation, upload is blocked."""
+        payload = b"some data"
+        ctx = _make_declined_ctx()
+
+        result = await upload_data_impl(
+            filename="data.csv",
+            content_base64=base64.b64encode(payload).decode("ascii"),
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(enabled=True, protect_file_ops=True),
+            session_id="s1",
+        )
+
+        assert result["status"] == "denied"
+        ctx.elicit.assert_called_once()
+        # File should NOT have been written
+        assert not (Path(tmp_session_dir) / "data.csv").exists()
+
+    async def test_delete_hitl_denied(
+        self, security: SecurityValidator, tmp_session_dir: str
+    ) -> None:
+        """With protect_file_ops=True and declined elicitation, delete is blocked."""
+        # Create a file to attempt deleting
+        p = Path(tmp_session_dir) / "to_delete.csv"
+        p.write_text("data", encoding="utf-8")
+        ctx = _make_declined_ctx()
+
+        result = await delete_file_impl(
+            filename="to_delete.csv",
+            session_temp_dir=tmp_session_dir,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(enabled=True, protect_file_ops=True),
+            session_id="s1",
+        )
+
+        assert result["status"] == "denied"
+        ctx.elicit.assert_called_once()
+        # File should still exist (delete was blocked)
+        assert p.exists()
