@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: FastMCP 3.0 Upgrade** - Migrate the server to FastMCP 3.2.0+, resolving all breaking changes so existing tools and tests pass (completed 2026-04-01)
 - [ ] **Phase 2: Auth Config + Bearer Token Middleware** - Add env-var-only auth config and implement BearerTokenMiddleware with 401/403 semantics
 - [ ] **Phase 3: Streamable HTTP Transport + Session Routing** - Wire streamable HTTP at /mcp, fix session routing for HTTP transport, add --generate-token CLI flag
-- [ ] **Phase 4: Human-in-the-Loop Approval** - Add configurable HITL gates for protected functions and file operations using FastMCP 3.0 elicitation API
+- [x] **Phase 4: Human-in-the-Loop Approval** - Add configurable HITL gates for protected functions and file operations using FastMCP 3.0 elicitation API (completed 2026-04-02)
 - [ ] **Phase 5: Windows 10 + Platform Hardening** - Validate and harden the server for Windows 10 no-admin deployment with cross-platform CI
 - [ ] **Phase 6: Documentation + Agent Onboarding** - Write Windows deployment guide and agent onboarding docs for Claude Code, Codex CLI, and Cursor
 
@@ -79,7 +79,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 04-01-PLAN.md — HITLConfig model, HumanApproval schema, gate helpers, and unit tests
-- [ ] 04-02-PLAN.md — Wire HITL gates into tool impl functions and server.py with integration tests
+- [x] 04-02-PLAN.md — Wire HITL gates into tool impl functions and server.py with integration tests
 
 ### Phase 5: Windows 10 + Platform Hardening
 **Goal**: Server runs correctly on Windows 10 without admin rights with default loopback binding, and cross-platform validation passes on Win10, macOS, and Linux
@@ -111,6 +111,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. FastMCP 3.0 Upgrade | 2/2 | Complete   | 2026-04-01 |
 | 2. Auth Config + Bearer Token Middleware | 1/2 | In Progress|  |
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
-| 4. Human-in-the-Loop Approval | 1/2 | In Progress|  |
+| 4. Human-in-the-Loop Approval | 2/2 | Complete   | 2026-04-02 |
 | 5. Windows 10 + Platform Hardening | 0/TBD | Not started | - |
 | 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |

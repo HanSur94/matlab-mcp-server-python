@@ -36,8 +36,8 @@ Requirements for v2.0 milestone. Each maps to roadmap phases.
 
 - [x] **HITL-01**: Configurable list of always-protected functions that require human approval before execution
 - [x] **HITL-02**: Optional HITL toggle for all `execute_code` calls (off by default, configurable per deployment)
-- [ ] **HITL-03**: File operations (upload, delete, write) can require human approval (configurable toggle)
-- [ ] **HITL-04**: Safe read-only tools (`list_toolboxes`, `get_help`, `get_workspace`, etc.) run without approval
+- [x] **HITL-03**: File operations (upload, delete, write) can require human approval (configurable toggle)
+- [x] **HITL-04**: Safe read-only tools (`list_toolboxes`, `get_help`, `get_workspace`, etc.) run without approval
 - [x] **HITL-05**: HITL uses FastMCP 3.0 elicitation API to request approval from the client/agent
 - [x] **HITL-06**: HITL configuration is part of config.yaml with sensible defaults (protected functions list, toggles)
 
@@ -96,8 +96,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRNS-05 | Phase 3 | Pending |
 | HITL-01 | Phase 4 | Complete |
 | HITL-02 | Phase 4 | Complete |
-| HITL-03 | Phase 4 | Pending |
-| HITL-04 | Phase 4 | Pending |
+| HITL-03 | Phase 4 | Complete |
+| HITL-04 | Phase 4 | Complete |
 | HITL-05 | Phase 4 | Complete |
 | HITL-06 | Phase 4 | Complete |
 | PLAT-01 | Phase 5 | Pending |
