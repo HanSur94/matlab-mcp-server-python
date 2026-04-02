@@ -87,3 +87,10 @@ monitoring:
   db_path: "./monitoring/metrics.db"
   dashboard_enabled: true
   http_port: 8766                # dashboard/health port (stdio transport only)
+
+# Human-in-the-loop approval gates (disabled by default)
+# hitl:
+#   enabled: false                  # Master switch — set true to enable any HITL gate
+#   protected_functions: []         # MATLAB functions that require approval before execution
+#     # Example: ["delete", "rmdir", "fclose", "ftp"]
+#   protect_file_ops: false         # Require approval for file upload and delete

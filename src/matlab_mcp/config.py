@@ -90,6 +90,33 @@ class SecurityConfig(BaseModel):
     require_proxy_auth: bool = False
 
 
+class HITLConfig(BaseModel):
+    """Human-in-the-loop approval gate configuration.
+
+    When ``enabled`` is True, operations matching the configured gates
+    will pause and prompt the human for approval via the MCP elicitation
+    protocol before proceeding.
+
+    Parameters
+    ----------
+    enabled : bool
+        Master switch. When False (default), no HITL prompts appear.
+    protected_functions : List[str]
+        MATLAB function names that require approval before execution.
+        Only checked when ``enabled`` is True. Default empty (no functions protected).
+    protect_file_ops : bool
+        When True, file upload and delete operations require approval.
+    all_execute : bool
+        When True, ALL execute_code calls require approval regardless
+        of whether the code calls a protected function. Satisfies HITL-02.
+    """
+
+    enabled: bool = False
+    protected_functions: List[str] = Field(default_factory=list)
+    protect_file_ops: bool = False
+    all_execute: bool = False
+
+
 class CodeCheckerConfig(BaseModel):
     """Code linting (checkcode/mlint) toggle and severity filter."""
 
@@ -147,6 +174,7 @@ class AppConfig(BaseModel):
     output: OutputConfig = Field(default_factory=OutputConfig)
     sessions: SessionsConfig = Field(default_factory=SessionsConfig)
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+    hitl: HITLConfig = Field(default_factory=HITLConfig)
 
     # Internal: stored after resolution so validators can use it
     _config_dir: Optional[Path] = None
