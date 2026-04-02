@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 03-02-PLAN.md (streamablehttp transport and session routing)
-last_updated: "2026-04-01T21:28:43.691Z"
-last_activity: 2026-04-01
+status: executing
+stopped_at: Completed 04-01-PLAN.md (HITLConfig and gate module)
+last_updated: "2026-04-02T05:59:05.077Z"
+last_activity: 2026-04-02
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 67
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
-**Current focus:** Phase 03 — streamable-http-transport-session-routing
+**Current focus:** Phase 04 — human-in-the-loop-approval
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-01
+Phase: 04 (human-in-the-loop-approval) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-04-02
 
 Progress: [███████░░░] 67%
 
@@ -58,6 +58,7 @@ Progress: [███████░░░] 67%
 | Phase 02 P02 | 600 | 2 tasks | 4 files |
 | Phase 03 P01 | 1 | 1 tasks | 2 files |
 | Phase 03 P02 | 6 | 2 tasks | 2 files |
+| Phase 04 P01 | 12 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 03]: SSE deprecation warning placed in startup banner before server.run() for visibility
 - [Phase 03]: config value 'streamablehttp' maps to FastMCP 'streamable-http' in server.run() call
 - [Phase 03]: stateless_http only forwarded for streamablehttp; NOT passed to SSE (FastMCP raises ValueError)
+- [Phase 04]: HITLConfig defaults to all-disabled (enabled=False) so HITL is zero-cost unless explicitly turned on
+- [Phase 04]: Gate functions return None (proceed) or DENIED dict (block) to allow simple if-check integration in tool handlers
+- [Phase 04]: _detect_protected_function uses word-boundary regex to prevent substring false positives
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-01T21:27:00.000Z
-Stopped at: Completed 03-02-PLAN.md (streamablehttp transport and session routing)
+Last session: 2026-04-02T05:59:05.073Z
+Stopped at: Completed 04-01-PLAN.md (HITLConfig and gate module)
 Resume file: None
