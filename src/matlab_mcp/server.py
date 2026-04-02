@@ -413,6 +413,8 @@ def create_server(config: AppConfig) -> FastMCP:
             executor=state.executor,
             security=state.security,
             temp_dir=temp_dir,
+            ctx=ctx,
+            hitl_config=config.hitl,
         )
         logger.info("Tool result: execute_code  status=%s  job=%s",
                      result.get("status"), result.get("job_id", "")[:8])
@@ -556,6 +558,9 @@ def create_server(config: AppConfig) -> FastMCP:
             session_temp_dir=temp_dir,
             security=state.security,
             max_size_mb=config.security.max_upload_size_mb,
+            ctx=ctx,
+            hitl_config=config.hitl,
+            session_id=session_id,
         )
 
     @mcp.tool
@@ -570,6 +575,9 @@ def create_server(config: AppConfig) -> FastMCP:
             filename=filename,
             session_temp_dir=temp_dir,
             security=state.security,
+            ctx=ctx,
+            hitl_config=config.hitl,
+            session_id=session_id,
         )
 
     @mcp.tool

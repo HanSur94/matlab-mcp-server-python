@@ -1,8 +1,9 @@
 """Tests for core MCP tool implementations."""
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
 
-from matlab_mcp.config import AppConfig, ExecutionConfig, SecurityConfig
+from matlab_mcp.config import AppConfig, ExecutionConfig, HITLConfig, SecurityConfig
 from matlab_mcp.jobs.executor import JobExecutor
 from matlab_mcp.jobs.tracker import JobTracker
 from matlab_mcp.security.validator import SecurityValidator
@@ -285,3 +286,115 @@ class TestGetWorkspaceImpl:
         )
 
         assert "job_id" in result
+
+
+# ---------------------------------------------------------------------------
+# HITL integration tests for execute_code_impl
+# ---------------------------------------------------------------------------
+
+
+def _make_accepted_ctx(approved: bool) -> MagicMock:
+    """Return a mock ctx whose elicit() returns an AcceptedElicitation."""
+    from fastmcp.server.context import AcceptedElicitation
+    from matlab_mcp.hitl.gate import HumanApproval
+
+    accepted = MagicMock(spec=AcceptedElicitation)
+    accepted.data = HumanApproval(approved=approved)
+    ctx = MagicMock()
+    ctx.elicit = AsyncMock(return_value=accepted)
+    return ctx
+
+
+def _make_declined_ctx() -> MagicMock:
+    """Return a mock ctx whose elicit() returns a DeclinedElicitation."""
+    from fastmcp.server.context import DeclinedElicitation
+
+    declined = MagicMock(spec=DeclinedElicitation)
+    ctx = MagicMock()
+    ctx.elicit = AsyncMock(return_value=declined)
+    return ctx
+
+
+class TestExecuteCodeHITL:
+    """Integration tests for HITL gate wired into execute_code_impl."""
+
+    async def test_execute_code_hitl_disabled_no_prompt(self):
+        """With HITL disabled (default), ctx.elicit is never called."""
+        from matlab_mcp.tools.core import execute_code_impl
+
+        executor, _ = _make_executor()
+        security = _make_security()
+        ctx = MagicMock()
+        ctx.elicit = AsyncMock()
+
+        result = await execute_code_impl(
+            code="x = 1;",
+            session_id="s1",
+            executor=executor,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(),
+        )
+
+        ctx.elicit.assert_not_called()
+        assert result["status"] == "completed"
+
+    async def test_execute_code_hitl_protected_denied(self):
+        """With a protected function in code, a declined elicitation blocks execution."""
+        from matlab_mcp.tools.core import execute_code_impl
+
+        executor, _ = _make_executor()
+        security = _make_security()
+        ctx = _make_declined_ctx()
+
+        result = await execute_code_impl(
+            code="delete(x)",
+            session_id="s1",
+            executor=executor,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(enabled=True, protected_functions=["delete"]),
+        )
+
+        assert result["status"] == "denied"
+        ctx.elicit.assert_called_once()
+
+    async def test_execute_code_hitl_protected_approved(self):
+        """With a protected function in code, an approved elicitation allows execution."""
+        from matlab_mcp.tools.core import execute_code_impl
+
+        executor, _ = _make_executor()
+        security = _make_security()
+        ctx = _make_accepted_ctx(approved=True)
+
+        result = await execute_code_impl(
+            code="delete(x)",
+            session_id="s1",
+            executor=executor,
+            security=security,
+            ctx=ctx,
+            hitl_config=HITLConfig(enabled=True, protected_functions=["delete"]),
+        )
+
+        # Code passes HITL and is executed (mock executor returns completed)
+        ctx.elicit.assert_called_once()
+        assert result["status"] == "completed"
+
+    async def test_execute_code_hitl_no_ctx_no_prompt(self):
+        """With ctx=None, even enabled HITL is skipped and executor is called."""
+        from matlab_mcp.tools.core import execute_code_impl
+
+        executor, _ = _make_executor()
+        security = _make_security()
+
+        result = await execute_code_impl(
+            code="delete(x)",
+            session_id="s1",
+            executor=executor,
+            security=security,
+            ctx=None,
+            hitl_config=HITLConfig(enabled=True, protected_functions=["delete"]),
+        )
+
+        # No ctx means no HITL check — executor runs normally
+        assert result["status"] == "completed"
