@@ -76,7 +76,10 @@ Plans:
   3. Read-only tools (list_toolboxes, get_help, get_workspace) execute immediately with no approval prompt regardless of HITL settings
   4. With all HITL toggles disabled (default), no approval prompts appear and existing behavior is unchanged
   5. HITL configuration (protected functions list, toggles) is present in config.yaml with commented sensible defaults
-**Plans**: [To be planned]
+**Plans**: 2 plans
+Plans:
+- [ ] 04-01-PLAN.md — HITLConfig model, HumanApproval schema, gate helpers, and unit tests
+- [ ] 04-02-PLAN.md — Wire HITL gates into tool impl functions and server.py with integration tests
 
 ### Phase 5: Windows 10 + Platform Hardening
 **Goal**: Server runs correctly on Windows 10 without admin rights with default loopback binding, and cross-platform validation passes on Win10, macOS, and Linux
@@ -108,6 +111,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. FastMCP 3.0 Upgrade | 2/2 | Complete   | 2026-04-01 |
 | 2. Auth Config + Bearer Token Middleware | 1/2 | In Progress|  |
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
-| 4. Human-in-the-Loop Approval | 0/TBD | Not started | - |
+| 4. Human-in-the-Loop Approval | 0/2 | Not started | - |
 | 5. Windows 10 + Platform Hardening | 0/TBD | Not started | - |
 | 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |
