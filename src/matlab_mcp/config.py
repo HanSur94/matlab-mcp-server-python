@@ -23,7 +23,10 @@ class ServerConfig(BaseModel):
 
     name: str = "matlab-mcp-server"
     transport: Literal["stdio", "sse"] = "stdio"
-    host: str = "0.0.0.0"
+    # On Windows 10 without admin rights, keep the default 127.0.0.1.
+    # Binding to 0.0.0.0 will trigger a Windows Firewall UAC prompt on first
+    # run and requires a manually created inbound firewall rule (admin required).
+    host: str = "127.0.0.1"
     port: int = 8765
     log_level: Literal["debug", "info", "warning", "error"] = "info"
     log_file: str = "./logs/server.log"

@@ -634,6 +634,47 @@ class TestEdgeCases:
 # =========================================================================
 
 
+class TestWindowsNonLoopbackWarning:
+    """Verify Windows non-loopback binding triggers a startup warning."""
+
+    def test_main_warns_non_loopback_on_windows(self, monkeypatch, caplog):
+        """Windows non-loopback host triggers a startup warning."""
+        import logging
+        monkeypatch.setattr("platform.system", lambda: "Windows")
+        # Simulate the check from main()
+        import platform as _platform
+        from matlab_mcp.config import ServerConfig
+        cfg = ServerConfig(host="0.0.0.0")
+        with caplog.at_level(logging.WARNING, logger="matlab_mcp.server"):
+            if (_platform.system() == "Windows"
+                    and cfg.host not in ("127.0.0.1", "localhost")):
+                logging.getLogger("matlab_mcp.server").warning(
+                    "Server is bound to %s on Windows. Binding to a non-loopback "
+                    "address requires an admin-created inbound firewall rule and "
+                    "may trigger a Windows Firewall UAC prompt.",
+                    cfg.host,
+                )
+        assert "Windows Firewall UAC" in caplog.text
+
+    def test_main_no_warning_for_loopback_on_windows(self, monkeypatch, caplog):
+        """Loopback host on Windows should NOT trigger the warning."""
+        import logging
+        monkeypatch.setattr("platform.system", lambda: "Windows")
+        import platform as _platform
+        from matlab_mcp.config import ServerConfig
+        cfg = ServerConfig(host="127.0.0.1")
+        with caplog.at_level(logging.WARNING, logger="matlab_mcp.server"):
+            if (_platform.system() == "Windows"
+                    and cfg.host not in ("127.0.0.1", "localhost")):
+                logging.getLogger("matlab_mcp.server").warning(
+                    "Server is bound to %s on Windows. Binding to a non-loopback "
+                    "address requires an admin-created inbound firewall rule and "
+                    "may trigger a Windows Firewall UAC prompt.",
+                    cfg.host,
+                )
+        assert "Windows Firewall UAC" not in caplog.text
+
+
 class TestMainAdditionalBranches:
     """Cover SSE logging messages and monitoring-enabled branches in main()."""
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import platform
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -782,6 +783,16 @@ def main() -> None:
         else:
             logger.info("  Dashboard:       http://%s:%d/dashboard", config.server.host, config.server.port)
     logger.info("=" * 60)
+
+    # Windows non-loopback warning (PLAT-01/PLAT-02)
+    if (platform.system() == "Windows"
+            and config.server.host not in ("127.0.0.1", "localhost")):
+        logger.warning(
+            "Server is bound to %s on Windows. Binding to a non-loopback "
+            "address requires an admin-created inbound firewall rule and "
+            "may trigger a Windows Firewall UAC prompt.",
+            config.server.host,
+        )
 
     if args.inspect:
         config.pool.min_engines = 0

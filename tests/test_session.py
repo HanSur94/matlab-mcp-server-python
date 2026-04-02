@@ -265,6 +265,14 @@ class TestCleanupExpired:
         assert mgr.cleanup_expired() == 3
 
 
+class TestSessionManagerDefaults:
+    def test_default_temp_dir_is_cross_platform(self):
+        import tempfile as _tempfile
+        mgr = SessionManager(config=None)
+        expected = str(Path(_tempfile.gettempdir()) / "matlab_mcp")
+        assert str(mgr._base_temp) == expected
+
+
 class TestSessionMonitoringEvents:
     def test_create_session_records_event(self):
         from unittest.mock import MagicMock

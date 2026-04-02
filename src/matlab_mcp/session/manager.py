@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -72,7 +73,7 @@ class SessionManager:
         else:
             self._max_sessions = 50
             self._session_timeout = 3600
-            base_temp = "/tmp/matlab_mcp"
+            base_temp = str(Path(tempfile.gettempdir()) / "matlab_mcp")
 
         self._base_temp = Path(base_temp)
         self._lock = threading.Lock()
