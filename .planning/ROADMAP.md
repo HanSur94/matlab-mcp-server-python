@@ -92,7 +92,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [ ] 05-01-PLAN.md — Default host to 127.0.0.1, fix /tmp path, Windows non-loopback warning
-- [ ] 05-02-PLAN.md — Add macOS CI job for cross-platform test coverage
+- [x] 05-02-PLAN.md — Add macOS CI job for cross-platform test coverage
 
 ### Phase 6: Documentation + Agent Onboarding
 **Goal**: Any developer can follow written guides to deploy the server on Windows 10 without admin rights and connect Claude Code, Codex CLI, or Cursor with minimal friction
@@ -115,5 +115,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 2. Auth Config + Bearer Token Middleware | 1/2 | In Progress|  |
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
 | 4. Human-in-the-Loop Approval | 2/2 | Complete   | 2026-04-02 |
-| 5. Windows 10 + Platform Hardening | 0/2 | Not started | - |
+| 5. Windows 10 + Platform Hardening | 1/2 | In Progress|  |
 | 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |

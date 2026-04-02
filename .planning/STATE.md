@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 04-02-PLAN.md (HITL gate wiring and integration tests)
-last_updated: "2026-04-02T06:11:40.173Z"
+status: executing
+stopped_at: Completed 05-02-PLAN.md (macOS CI job for cross-platform test matrix)
+last_updated: "2026-04-02T06:23:20.788Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 67
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
-**Current focus:** Phase 04 — human-in-the-loop-approval
+**Current focus:** Phase 05 — windows-10-platform-hardening
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 05 (windows-10-platform-hardening) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-02
 
 Progress: [███████░░░] 67%
@@ -60,6 +60,7 @@ Progress: [███████░░░] 67%
 | Phase 03 P02 | 6 | 2 tasks | 2 files |
 | Phase 04 P01 | 12 | 2 tasks | 5 files |
 | Phase 04 P02 | 10 | 2 tasks | 5 files |
+| Phase 05 P02 | 1 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,7 @@ Recent decisions affecting current work:
 - [Phase 04]: Optional[Any] for ctx param type keeps tool modules free of FastMCP imports and testable in isolation
 - [Phase 04]: HITL gate placement: after security/validation checks, before I/O — prompts show safe sanitized names
 - [Phase 04]: Read-only tools (get_workspace, check_code, list_files, etc.) deliberately ungated per HITL-04
+- [Phase 05]: test-macos uses direct pip install (not install.bat), matching Linux test job pattern — macOS completes the three-platform CI triad for PLAT-03
 
 ### Pending Todos
 
@@ -103,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T06:07:25.804Z
-Stopped at: Completed 04-02-PLAN.md (HITL gate wiring and integration tests)
+Last session: 2026-04-02T06:23:20.784Z
+Stopped at: Completed 05-02-PLAN.md (macOS CI job for cross-platform test matrix)
 Resume file: None
