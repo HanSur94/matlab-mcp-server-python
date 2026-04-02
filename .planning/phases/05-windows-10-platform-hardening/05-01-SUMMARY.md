@@ -101,3 +101,12 @@ None - no external service configuration required.
 ---
 *Phase: 05-windows-10-platform-hardening*
 *Completed: 2026-04-02*
+
+## Self-Check: PASSED
+
+- FOUND: .planning/phases/05-windows-10-platform-hardening/05-01-SUMMARY.md
+- FOUND: src/matlab_mcp/config.py (host: str = "127.0.0.1")
+- FOUND: src/matlab_mcp/session/manager.py (tempfile.gettempdir())
+- FOUND: src/matlab_mcp/server.py (Windows Firewall UAC warning)
+- FOUND: commit b7a6ef9 (feat task commit)
+- FOUND: commit be98bd9 (docs metadata commit)

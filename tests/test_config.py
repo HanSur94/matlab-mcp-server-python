@@ -33,10 +33,15 @@ class TestDefaultValues:
         cfg = ServerConfig()
         assert cfg.name == "matlab-mcp-server"
         assert cfg.transport == "stdio"
-        assert cfg.host == "0.0.0.0"
+        assert cfg.host == "127.0.0.1"
         assert cfg.port == 8765
         assert cfg.log_level == "info"
         assert cfg.drain_timeout_seconds == 300
+
+    def test_server_host_env_override(self, monkeypatch):
+        monkeypatch.setenv("MATLAB_MCP_SERVER_HOST", "0.0.0.0")
+        cfg = load_config(None)
+        assert cfg.server.host == "0.0.0.0"
 
     def test_pool_defaults(self):
         cfg = PoolConfig()

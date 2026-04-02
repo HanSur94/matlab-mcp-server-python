@@ -23,7 +23,7 @@ class ServerConfig(BaseModel):
 
     name: str = "matlab-mcp-server"
     transport: Literal["stdio", "sse", "streamablehttp"] = "stdio"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8765
     log_level: Literal["debug", "info", "warning", "error"] = "info"
     log_file: str = "./logs/server.log"
