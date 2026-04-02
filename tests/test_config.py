@@ -8,12 +8,14 @@ import pytest
 from matlab_mcp.config import (
     AppConfig,
     ExecutionConfig,
+    HITLConfig,
     MonitoringConfig,
     OutputConfig,
     PoolConfig,
     SecurityConfig,
     ServerConfig,
     SessionsConfig,
+    _apply_env_overrides,
     load_config,
 )
 
@@ -243,3 +245,46 @@ class TestMonitoringConfig:
         app.resolve_paths(tmp_path)
         assert Path(app.monitoring.db_path).is_absolute()
         assert str(tmp_path) in app.monitoring.db_path
+
+
+# ---------------------------------------------------------------------------
+# HITLConfig
+# ---------------------------------------------------------------------------
+
+
+class TestHITLConfig:
+    """Tests for HITLConfig defaults and env var overrides."""
+
+    def test_hitl_defaults(self):
+        """HITLConfig has all fields defaulting to disabled/empty."""
+        config = AppConfig()
+        assert config.hitl.enabled is False
+        assert config.hitl.protected_functions == []
+        assert config.hitl.protect_file_ops is False
+        assert config.hitl.all_execute is False
+
+    def test_hitl_config_direct_defaults(self):
+        """HITLConfig standalone construction has correct defaults."""
+        hitl = HITLConfig()
+        assert hitl.enabled is False
+        assert hitl.protected_functions == []
+        assert hitl.protect_file_ops is False
+        assert hitl.all_execute is False
+
+    def test_hitl_env_override(self, monkeypatch):
+        """MATLAB_MCP_HITL_ENABLED=true sets hitl.enabled=True."""
+        monkeypatch.setenv("MATLAB_MCP_HITL_ENABLED", "true")
+        cfg = load_config(None)
+        assert cfg.hitl.enabled is True
+
+    def test_hitl_env_override_false(self, monkeypatch):
+        """MATLAB_MCP_HITL_ENABLED=false keeps hitl.enabled=False."""
+        monkeypatch.setenv("MATLAB_MCP_HITL_ENABLED", "false")
+        cfg = load_config(None)
+        assert cfg.hitl.enabled is False
+
+    def test_hitl_apply_env_overrides_directly(self, monkeypatch):
+        """_apply_env_overrides sets hitl.enabled in data dict."""
+        monkeypatch.setenv("MATLAB_MCP_HITL_ENABLED", "true")
+        data = _apply_env_overrides({"hitl": {}})
+        assert data["hitl"]["enabled"] is True
