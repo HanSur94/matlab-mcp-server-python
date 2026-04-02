@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 05-01-PLAN.md (Windows platform hardening — default host and temp dir)
-last_updated: "2026-04-02T06:31:59.311Z"
+status: executing
+stopped_at: Completed 06-01-PLAN.md (Windows 10 no-admin deployment guide)
+last_updated: "2026-04-02T06:40:40.987Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 12
   percent: 67
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
-**Current focus:** Phase 05 — windows-10-platform-hardening
+**Current focus:** Phase 06 — documentation-agent-onboarding
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 06 (documentation-agent-onboarding) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-02
 
 Progress: [███████░░░] 67%
@@ -62,6 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 04 P02 | 10 | 2 tasks | 5 files |
 | Phase 05 P02 | 1 | 1 tasks | 1 files |
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
+| Phase 06 P01 | 8 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 05]: test-macos uses direct pip install (not install.bat), matching Linux test job pattern — macOS completes the three-platform CI triad for PLAT-03
 - [Phase 05]: Default bind address 127.0.0.1: avoids Windows Firewall UAC on first run without admin rights
 - [Phase 05]: tempfile.gettempdir() for cross-platform temp paths: replaces hardcoded /tmp which fails on Windows
+- [Phase 06]: Document streamablehttp as the recommended transport throughout — no SSE mentions as recommended option
+- [Phase 06]: pip install matlabengine as Option A for Engine API on Windows (avoids admin for Program Files installs)
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T06:27:41.305Z
-Stopped at: Completed 05-01-PLAN.md (Windows platform hardening — default host and temp dir)
+Last session: 2026-04-02T06:40:40.984Z
+Stopped at: Completed 06-01-PLAN.md (Windows 10 no-admin deployment guide)
 Resume file: None

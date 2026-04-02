@@ -46,7 +46,7 @@ Requirements for v2.0 milestone. Each maps to roadmap phases.
 - [x] **PLAT-01**: Server runs on Windows 10 without admin rights (user-space ports, loopback-only default)
 - [x] **PLAT-02**: Default HTTP bind address is `127.0.0.1` (avoids Windows Firewall UAC prompt)
 - [x] **PLAT-03**: Cross-platform validation passes on Windows 10, macOS, and Linux
-- [ ] **PLAT-04**: Windows 10 deployment guide with step-by-step instructions for restricted machines
+- [x] **PLAT-04**: Windows 10 deployment guide with step-by-step instructions for restricted machines
 - [ ] **PLAT-05**: Agent onboarding docs with connection examples for Claude Code, Codex CLI, and Cursor
 
 ## v2 Requirements
@@ -103,7 +103,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAT-01 | Phase 5 | Complete |
 | PLAT-02 | Phase 5 | Complete |
 | PLAT-03 | Phase 5 | Complete |
-| PLAT-04 | Phase 6 | Pending |
+| PLAT-04 | Phase 6 | Complete |
 | PLAT-05 | Phase 6 | Pending |
 
 **Coverage:**

@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Streamable HTTP Transport + Session Routing** - Wire streamable HTTP at /mcp, fix session routing for HTTP transport, add --generate-token CLI flag
 - [x] **Phase 4: Human-in-the-Loop Approval** - Add configurable HITL gates for protected functions and file operations using FastMCP 3.0 elicitation API (completed 2026-04-02)
 - [ ] **Phase 5: Windows 10 + Platform Hardening** - Validate and harden the server for Windows 10 no-admin deployment with cross-platform CI
-- [ ] **Phase 6: Documentation + Agent Onboarding** - Write Windows deployment guide and agent onboarding docs for Claude Code, Codex CLI, and Cursor
+- [x] **Phase 6: Documentation + Agent Onboarding** - Write Windows deployment guide and agent onboarding docs for Claude Code, Codex CLI, and Cursor (completed 2026-04-02)
 
 ## Phase Details
 
@@ -104,8 +104,8 @@ Plans:
   3. All doc examples use the streamable HTTP transport at `/mcp`, not SSE
 **Plans**: 2 plans
 Plans:
-- [ ] 06-01-PLAN.md — Windows 10 no-admin deployment guide (pip install to first MATLAB tool call)
-- [ ] 06-02-PLAN.md — Agent onboarding docs with connection examples for Claude Code, Codex CLI, and Cursor
+- [x] 06-01-PLAN.md — Windows 10 no-admin deployment guide (pip install to first MATLAB tool call)
+- [x] 06-02-PLAN.md — Agent onboarding docs with connection examples for Claude Code, Codex CLI, and Cursor
 
 ## Progress
 
@@ -119,4 +119,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
 | 4. Human-in-the-Loop Approval | 2/2 | Complete   | 2026-04-02 |
 | 5. Windows 10 + Platform Hardening | 1/2 | In Progress|  |
-| 6. Documentation + Agent Onboarding | 0/2 | Not started | - |
+| 6. Documentation + Agent Onboarding | 2/2 | Complete   | 2026-04-02 |
