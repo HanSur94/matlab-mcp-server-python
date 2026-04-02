@@ -91,7 +91,7 @@ Plans:
   3. Changing `bind_address: 0.0.0.0` in config is documented as requiring an admin-created firewall rule, and the default is loopback
 **Plans**: 2 plans
 Plans:
-- [ ] 05-01-PLAN.md — Default host to 127.0.0.1, fix /tmp path, Windows non-loopback warning
+- [x] 05-01-PLAN.md — Default host to 127.0.0.1, fix /tmp path, Windows non-loopback warning
 - [x] 05-02-PLAN.md — Add macOS CI job for cross-platform test coverage
 
 ### Phase 6: Documentation + Agent Onboarding
