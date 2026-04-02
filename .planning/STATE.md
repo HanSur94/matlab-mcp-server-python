@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 06-01-PLAN.md (Windows 10 no-admin deployment guide)
-last_updated: "2026-04-02T06:40:40.987Z"
+status: verifying
+stopped_at: Completed 06-02-PLAN.md (agent onboarding documentation — Claude Code, Codex CLI, Cursor)
+last_updated: "2026-04-02T06:40:22.213Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
-  completed_phases: 6
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 12
+  completed_plans: 10
   percent: 67
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-01)
 
 **Core value:** Any MCP-compatible coding agent can connect to MATLAB and run code securely — with minimal setup, proper authentication, and production-grade reliability.
-**Current focus:** Phase 06 — documentation-agent-onboarding
+**Current focus:** Phase 05 — windows-10-platform-hardening
 
 ## Current Position
 
-Phase: 06 (documentation-agent-onboarding) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
+Phase: 6
+Plan: Not started
+Status: Phase complete — ready for verification
 Last activity: 2026-04-02
 
 Progress: [███████░░░] 67%
@@ -62,7 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 04 P02 | 10 | 2 tasks | 5 files |
 | Phase 05 P02 | 1 | 1 tasks | 1 files |
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
-| Phase 06 P01 | 8 | 1 tasks | 1 files |
+| Phase 06 P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -97,8 +97,8 @@ Recent decisions affecting current work:
 - [Phase 05]: test-macos uses direct pip install (not install.bat), matching Linux test job pattern — macOS completes the three-platform CI triad for PLAT-03
 - [Phase 05]: Default bind address 127.0.0.1: avoids Windows Firewall UAC on first run without admin rights
 - [Phase 05]: tempfile.gettempdir() for cross-platform temp paths: replaces hardcoded /tmp which fails on Windows
-- [Phase 06]: Document streamablehttp as the recommended transport throughout — no SSE mentions as recommended option
-- [Phase 06]: pip install matlabengine as Option A for Engine API on Windows (avoids admin for Program Files installs)
+- [Phase 06]: Document both stdio and streamable HTTP for each agent — stdio for local single-user, HTTP for team/production
+- [Phase 06]: SSE transport gets deprecation notice in agent-onboarding.md; no working SSE configs provided — Codex CLI notes SSE as root cause of original connectivity failures
 
 ### Pending Todos
 
@@ -111,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T06:40:40.984Z
-Stopped at: Completed 06-01-PLAN.md (Windows 10 no-admin deployment guide)
+Last session: 2026-04-02T06:40:22.209Z
+Stopped at: Completed 06-02-PLAN.md (agent onboarding documentation — Claude Code, Codex CLI, Cursor)
 Resume file: None
