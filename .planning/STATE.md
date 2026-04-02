@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 05-01-PLAN.md (Windows platform hardening — default host and temp dir)
-last_updated: "2026-04-02T06:31:59.311Z"
+stopped_at: Completed 06-02-PLAN.md (agent onboarding documentation — Claude Code, Codex CLI, Cursor)
+last_updated: "2026-04-02T06:40:22.213Z"
 last_activity: 2026-04-02
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 10
+  total_plans: 12
   completed_plans: 10
   percent: 67
 ---
@@ -62,6 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 04 P02 | 10 | 2 tasks | 5 files |
 | Phase 05 P02 | 1 | 1 tasks | 1 files |
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
+| Phase 06 P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 05]: test-macos uses direct pip install (not install.bat), matching Linux test job pattern — macOS completes the three-platform CI triad for PLAT-03
 - [Phase 05]: Default bind address 127.0.0.1: avoids Windows Firewall UAC on first run without admin rights
 - [Phase 05]: tempfile.gettempdir() for cross-platform temp paths: replaces hardcoded /tmp which fails on Windows
+- [Phase 06]: Document both stdio and streamable HTTP for each agent — stdio for local single-user, HTTP for team/production
+- [Phase 06]: SSE transport gets deprecation notice in agent-onboarding.md; no working SSE configs provided — Codex CLI notes SSE as root cause of original connectivity failures
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-02T06:27:41.305Z
-Stopped at: Completed 05-01-PLAN.md (Windows platform hardening — default host and temp dir)
+Last session: 2026-04-02T06:40:22.209Z
+Stopped at: Completed 06-02-PLAN.md (agent onboarding documentation — Claude Code, Codex CLI, Cursor)
 Resume file: None

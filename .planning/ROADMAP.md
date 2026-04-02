@@ -119,4 +119,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
 | 4. Human-in-the-Loop Approval | 2/2 | Complete   | 2026-04-02 |
 | 5. Windows 10 + Platform Hardening | 1/2 | In Progress|  |
-| 6. Documentation + Agent Onboarding | 0/2 | Not started | - |
+| 6. Documentation + Agent Onboarding | 0/2 | Planned    |  |
