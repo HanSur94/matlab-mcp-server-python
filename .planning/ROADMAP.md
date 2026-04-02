@@ -102,7 +102,10 @@ Plans:
   1. A developer on a restricted Windows 10 machine can complete the deployment guide from pip install to first successful MATLAB tool call without needing admin rights
   2. Connection examples for Claude Code, Codex CLI, and Cursor are present in docs, each showing the exact config needed including `bearer_token_env_var`
   3. All doc examples use the streamable HTTP transport at `/mcp`, not SSE
-**Plans**: [To be planned]
+**Plans**: 2 plans
+Plans:
+- [ ] 06-01-PLAN.md — Windows 10 no-admin deployment guide (pip install to first MATLAB tool call)
+- [ ] 06-02-PLAN.md — Agent onboarding docs with connection examples for Claude Code, Codex CLI, and Cursor
 
 ## Progress
 
@@ -116,4 +119,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Streamable HTTP Transport + Session Routing | 2/2 | In Progress|  |
 | 4. Human-in-the-Loop Approval | 2/2 | Complete   | 2026-04-02 |
 | 5. Windows 10 + Platform Hardening | 1/2 | In Progress|  |
-| 6. Documentation + Agent Onboarding | 0/TBD | Not started | - |
+| 6. Documentation + Agent Onboarding | 0/2 | Not started | - |
