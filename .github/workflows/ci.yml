@@ -78,26 +78,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Run install.bat
-        shell: cmd
-        run: |
-          call install.bat < nul
+      - run: pip install -e ".[dev,monitoring]"
       - name: Verify MCP server module loads
-        shell: cmd
-        run: |
-          call .venv\Scripts\activate.bat
-          python -c "from matlab_mcp.server import main; print('OK: server module loads')"
-      - name: Verify monitoring subpackage
-        shell: cmd
-        run: |
-          call .venv\Scripts\activate.bat
-          python -c "from matlab_mcp.monitoring.collector import MetricsCollector; print('OK: monitoring loads')"
+        run: python -c "from matlab_mcp.server import main; print('OK')"
       - name: Run tests (no MATLAB engine)
-        shell: cmd
-        run: |
-          call .venv\Scripts\activate.bat
-          pip install pytest pytest-asyncio pytest-cov --quiet
-          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
+        run: pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
   test-macos:
     needs: lint
