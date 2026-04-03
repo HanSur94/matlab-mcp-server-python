@@ -397,6 +397,90 @@ class TestPoolManagerStatus:
         await patched_pool_manager.stop()
 
 
+class TestPoolManagerReleaseAndStartTimeout:
+    async def test_release_returns_engine_on_reset_failure(self, patched_pool_manager):
+        """Engine must be returned to pool even when reset_workspace() raises."""
+        await patched_pool_manager.start()
+        engine = await patched_pool_manager.acquire()
+
+        # Force reset_workspace to raise
+        original_reset = engine.reset_workspace
+        def failing_reset():
+            raise RuntimeError("workspace reset failed")
+        engine.reset_workspace = failing_reset
+
+        before_qsize = patched_pool_manager._available.qsize()
+        await patched_pool_manager.release(engine)
+
+        # Engine must have been put back in the queue
+        assert patched_pool_manager._available.qsize() == before_qsize + 1
+        assert engine._needs_replacement is True
+
+        engine.reset_workspace = original_reset
+        await patched_pool_manager.stop()
+
+    async def test_start_engine_timeout(self, patched_pool_manager):
+        """_start_engine_async should raise RuntimeError when start exceeds timeout."""
+        # Override _make_engine to produce a wrapper whose start() sleeps forever
+        original_make = patched_pool_manager._make_engine
+
+        def slow_start_engine():
+            wrapper = original_make()
+            def slow_start():
+                import time as _time
+                _time.sleep(10)
+            wrapper.start = slow_start
+            return wrapper
+
+        patched_pool_manager._make_engine = slow_start_engine
+        patched_pool_manager._pool_config.engine_start_timeout = 0.05
+
+        with pytest.raises(RuntimeError, match="failed to start"):
+            await patched_pool_manager._start_engine_async()
+
+    async def test_acquire_repoll_after_scale_lock(self, patched_pool_manager):
+        """acquire() should pick up an engine placed in the queue after scale lock."""
+        await patched_pool_manager.start()
+
+        # Fill pool to max so scale-up path is taken
+        engines = []
+        for _ in range(patched_pool_manager._pool_config.max_engines):
+            engines.append(await patched_pool_manager.acquire())
+
+        # Put one engine directly into the available queue (simulating release
+        # that happened while acquire() was inside the scale lock)
+        released = engines.pop()
+        released.mark_idle()
+        await patched_pool_manager._available.put(released)
+
+        # acquire() should get_nowait() the engine without blocking indefinitely
+        acquired = await patched_pool_manager.acquire()
+        assert acquired is released
+
+        for e in engines:
+            await patched_pool_manager.release(e)
+        await patched_pool_manager.release(acquired)
+        await patched_pool_manager.stop()
+
+    async def test_get_status_counts_busy_from_state(self, patched_pool_manager):
+        """get_status() busy_engines must reflect actual engine state, not arithmetic."""
+        await patched_pool_manager.start()
+
+        # Start with all idle; busy should be 0
+        assert patched_pool_manager.get_status()["busy"] == 0
+
+        # Manually mark one engine busy
+        engine = patched_pool_manager._all_engines[0]
+        engine.mark_busy()
+        assert patched_pool_manager.get_status()["busy"] == 1
+
+        # Mark it idle again
+        engine.mark_idle()
+        assert patched_pool_manager.get_status()["busy"] == 0
+
+        await patched_pool_manager.stop()
+
+
 class TestPoolManagerHealthChecks:
     async def test_health_check_keeps_healthy_engines(self, patched_pool_manager):
         await patched_pool_manager.start()

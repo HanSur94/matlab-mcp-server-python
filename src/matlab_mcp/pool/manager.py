@@ -52,11 +52,28 @@ class EnginePoolManager:
         return MatlabEngineWrapper(engine_id, self._pool_config, self._workspace_config)
 
     async def _start_engine_async(self) -> MatlabEngineWrapper:
-        """Start a single engine in a thread executor and return it."""
+        """Start a single engine in a thread executor and return it.
+
+        Enforces ``engine_start_timeout`` from pool config via ``asyncio.wait_for``.
+        """
         loop = asyncio.get_running_loop()
         engine = self._make_engine()
         self._all_engines.append(engine)
-        await loop.run_in_executor(None, engine.start)
+        timeout = float(self._pool_config.engine_start_timeout)
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(None, engine.start),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error("[%s] Engine startup timed out after %.0fs", engine.engine_id, timeout)
+            try:
+                self._all_engines.remove(engine)
+            except ValueError:
+                pass
+            raise RuntimeError(
+                f"Engine {engine.engine_id} failed to start within {timeout:.0f}s"
+            )
         return engine
 
     # ------------------------------------------------------------------
@@ -104,7 +121,15 @@ class EnginePoolManager:
                     self._collector.record_event("engine_scale_up", {"engine_id": engine.engine_id, "total_after": len(self._all_engines)})
                 return engine
 
-        # At max capacity — wait for one to become available
+        # At max capacity — re-poll first (an engine may have been returned while
+        # we held the scale lock), then block until one becomes available.
+        try:
+            engine = self._available.get_nowait()
+            engine.mark_busy()
+            return engine
+        except asyncio.QueueEmpty:
+            pass
+
         logger.warning("Pool at max capacity (%d/%d busy) — waiting for available engine",
                         len(self._all_engines), self._pool_config.max_engines)
         engine = await self._available.get()
@@ -113,12 +138,25 @@ class EnginePoolManager:
         return engine
 
     async def release(self, engine: MatlabEngineWrapper) -> None:
-        """Return an engine to the pool."""
+        """Return an engine to the pool.
+
+        Uses a try/finally so the engine is always returned to the available
+        queue even if ``reset_workspace()`` raises.  A failed reset sets
+        ``engine._needs_replacement`` so the next health check can retire it.
+        """
         logger.info("Releasing engine %s — resetting workspace", engine.engine_id)
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, engine.reset_workspace)
-        engine.mark_idle()
-        await self._available.put(engine)
+        try:
+            await loop.run_in_executor(None, engine.reset_workspace)
+        except Exception as exc:
+            logger.warning(
+                "[%s] reset_workspace failed on release: %s — returning engine to pool",
+                engine.engine_id, exc,
+            )
+            engine._needs_replacement = True
+        finally:
+            engine.mark_idle()
+            await self._available.put(engine)
         logger.info("Engine %s returned to pool (available=%d)",
                      engine.engine_id, self._available.qsize())
 
@@ -150,7 +188,11 @@ class EnginePoolManager:
         min_engines = self._pool_config.min_engines
         idle_timeout = self._pool_config.scale_down_idle_timeout
 
-        # Collect currently available (idle) engines by draining the queue
+        # Collect currently available (idle) engines by draining the queue.
+        # NOTE (Issue 22): This drain-and-refill pattern is intentional.
+        # Engines are temporarily unavailable during the health check window
+        # (typically ≤1 second per engine).  Acquire() will block until
+        # run_health_checks() finishes and returns the healthy engines.
         idle_engines: List[MatlabEngineWrapper] = []
         while not self._available.empty():
             try:
@@ -219,13 +261,17 @@ class EnginePoolManager:
         """Return a dict summarizing pool status.
 
         Keys: ``total``, ``available``, ``busy``, ``max``.
+
+        ``busy`` is derived from the actual ``EngineState`` of each engine
+        rather than arithmetic on queue size, so it remains correct even when
+        engines are mid-transition.
         """
         total = len(self._all_engines)
+        busy = sum(1 for e in self._all_engines if e.state == EngineState.BUSY)
         available = self._available.qsize()
-        busy = total - available
         return {
             "total": total,
             "available": available,
-            "busy": max(busy, 0),
+            "busy": busy,
             "max": self._pool_config.max_engines,
         }
