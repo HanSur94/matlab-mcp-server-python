@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-04-03T18:48:17.691Z"
+stopped_at: Completed 07-03 pool resource safety and engine workspace API
+last_updated: "2026-04-03T18:49:14.725Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 7
@@ -63,7 +63,7 @@ Progress: [███████░░░] 67%
 | Phase 05 P02 | 1 | 1 tasks | 1 files |
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
 | Phase 06 P02 | 2 | 1 tasks | 1 files |
-| Phase 07 P02 | 5 | 2 tasks | 4 files |
+| Phase 07 P03 | 15 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -100,7 +100,9 @@ Recent decisions affecting current work:
 - [Phase 05]: tempfile.gettempdir() for cross-platform temp paths: replaces hardcoded /tmp which fails on Windows
 - [Phase 06]: Document both stdio and streamable HTTP for each agent — stdio for local single-user, HTTP for team/production
 - [Phase 06]: SSE transport gets deprecation notice in agent-onboarding.md; no working SSE configs provided — Codex CLI notes SSE as root cause of original connectivity failures
-- [Phase 07]: Security validator created before JobExecutor in MatlabMCPServer.__init__() so it can be passed as constructor arg — enables centralized check_code() for all code paths
+- [Phase 07]: Set engine._needs_replacement=True on reset failure — defers retirement to health check rather than discarding immediately
+- [Phase 07]: Issue 22 health check drain documented with comment only — drain-and-refill pattern is correct, just undocumented
+- [Phase 07]: Workspace API added to engine.py in plan 03; executor.py migration deferred to plan 04 per spec
 
 ### Pending Todos
 
@@ -121,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T18:48:17.688Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-04-03T18:49:14.721Z
+Stopped at: Completed 07-03 pool resource safety and engine workspace API
 Resume file: None
