@@ -102,7 +102,7 @@ jobs:
   integration-test:
     needs: lint
     runs-on: ubuntu-latest
-    continue-on-error: true  # Server subprocess startup is timing-sensitive in CI
+    # Polls /mcp endpoint for readiness (not /health which may not be routed)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

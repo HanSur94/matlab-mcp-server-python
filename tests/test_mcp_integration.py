@@ -29,9 +29,8 @@ from mcp.client.streamable_http import streamable_http_client
 _SERVER_HOST = "127.0.0.1"
 _SERVER_PORT = 8765
 _AUTH_TOKEN = "test-token-for-ci"
-_HEALTH_URL = f"http://{_SERVER_HOST}:{_SERVER_PORT}/health"
 _MCP_URL = f"http://{_SERVER_HOST}:{_SERVER_PORT}/mcp"
-_STARTUP_TIMEOUT_S = 15.0
+_STARTUP_TIMEOUT_S = 20.0
 _POLL_INTERVAL_S = 0.5
 _TEARDOWN_TIMEOUT_S = 5.0
 
@@ -77,12 +76,23 @@ def mcp_server_process() -> Any:
         stderr=subprocess.PIPE,
     )
 
-    # Poll /health until server is ready or timeout expires
+    # Poll /mcp until server is ready or timeout expires.
+    # We POST a minimal JSON-RPC initialize to the MCP endpoint since /health
+    # may not be routed through the same ASGI app on all transport modes.
     deadline = time.monotonic() + _STARTUP_TIMEOUT_S
     ready = False
+    headers = {"Authorization": f"Bearer {_AUTH_TOKEN}"}
     while time.monotonic() < deadline:
         try:
-            response = httpx.get(_HEALTH_URL, timeout=2.0)
+            response = httpx.post(
+                _MCP_URL,
+                json={"jsonrpc": "2.0", "method": "initialize", "id": 0,
+                      "params": {"protocolVersion": "2024-11-05",
+                                 "capabilities": {},
+                                 "clientInfo": {"name": "test", "version": "0.1"}}},
+                headers=headers,
+                timeout=2.0,
+            )
             if response.status_code < 500:
                 ready = True
                 break
