@@ -111,6 +111,16 @@ jobs:
       - run: pip install -e ".[dev,monitoring]" pytest-timeout
       - run: pytest tests/test_mcp_integration.py -v -m integration --timeout=60
 
+  remote-integration-test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f docker-compose.test.yml up --build --exit-code-from client
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
   docker:
     needs: lint
     runs-on: ubuntu-latest
