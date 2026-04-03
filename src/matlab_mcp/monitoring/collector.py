@@ -82,6 +82,14 @@ class MetricsCollector:
         # Background sampling task reference
         self._sampling_task: Optional[asyncio.Task] = None
 
+        # Prime psutil cpu_percent counter — first call always returns 0.0 per psutil docs
+        try:
+            import psutil  # type: ignore
+
+            psutil.Process().cpu_percent()
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Counter access
     # ------------------------------------------------------------------
@@ -241,6 +249,22 @@ class MetricsCollector:
     # ------------------------------------------------------------------
     # Live snapshot (no SQLite hit)
     # ------------------------------------------------------------------
+
+    async def count_errors(self, hours: float = 24.0) -> int:
+        """Return the count of error events in the given time window.
+
+        Delegates to the store's :meth:`~MetricsStore.count_errors` method.
+        Returns 0 if no store is configured.
+
+        Args:
+            hours: Number of hours to look back (default 24.0).
+
+        Returns:
+            Integer count of error events.
+        """
+        if self.store is None:
+            return 0
+        return await self.store.count_errors(hours)
 
     def get_current_snapshot(self) -> Dict[str, Any]:
         """Return a structured dict of live metrics for the /metrics endpoint."""

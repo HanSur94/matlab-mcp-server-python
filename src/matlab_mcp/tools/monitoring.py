@@ -83,10 +83,8 @@ async def get_error_log_impl(state: Any, limit: int = 20) -> dict[str, Any]:
         event_types=list(ERROR_EVENT_TYPES),
     )
 
-    # Count errors in last 24h using aggregates (proper time window)
-    aggregates = await store.get_aggregates(hours=24)
-    error_rate = aggregates.get("error_rate_per_minute", 0)
-    total_errors_24h = int(error_rate * 60 * 24)
+    # Count errors in last 24h via direct COUNT query
+    total_errors_24h = await state.collector.count_errors(hours=24)
 
     return {
         "events": events,

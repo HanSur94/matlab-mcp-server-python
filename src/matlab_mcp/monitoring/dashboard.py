@@ -26,6 +26,77 @@ STATIC_DIR = Path(__file__).parent / "static"
 STATIC_DIR_RESOLVED = STATIC_DIR.resolve()
 
 
+# ---------------------------------------------------------------------------
+# Shared handler logic — called by both create_monitoring_app and
+# register_monitoring_routes so business logic is defined exactly once.
+# ---------------------------------------------------------------------------
+
+def _make_health_response(state: Any) -> JSONResponse:
+    """Build a health JSON response with the correct status code."""
+    response = build_health_response(state)
+    return JSONResponse(response, status_code=get_health_status_code(response))
+
+
+def _make_metrics_response(state: Any) -> JSONResponse:
+    """Build a metrics JSON response from the current snapshot."""
+    return JSONResponse(build_metrics_response(state))
+
+
+def _make_dashboard_response(cached_html: str | None) -> HTMLResponse:
+    """Return the cached dashboard HTML, or a 404 page."""
+    if cached_html is not None:
+        return HTMLResponse(cached_html)
+    return HTMLResponse("<h1>Dashboard not found</h1>", status_code=404)
+
+
+async def _handle_api_history(request: Request, state: Any) -> JSONResponse:
+    """Shared logic for GET /dashboard/api/history.
+
+    Query params: ``metric`` (default ``pool.utilization_pct``),
+    ``hours`` (default ``1``, clamped to [0.01, 720]).
+    """
+    metric = request.query_params.get("metric", "pool.utilization_pct")
+    try:
+        hours = float(request.query_params.get("hours", "1"))
+    except (ValueError, TypeError):
+        hours = 1.0
+    hours = min(max(hours, 0.01), 720.0)
+    store = state.collector.store if state.collector else None
+    if not store:
+        return JSONResponse({"data": [], "warning": "metrics unavailable"})
+    data = await store.get_history(metric, hours)
+    return JSONResponse({"data": data})
+
+
+async def _handle_api_events(request: Request, state: Any) -> JSONResponse:
+    """Shared logic for GET /dashboard/api/events.
+
+    Query params: ``limit`` (default ``100``, clamped to [1, 10000]),
+    ``type`` (optional event type filter).
+    """
+    try:
+        limit = int(request.query_params.get("limit", "100"))
+    except (ValueError, TypeError):
+        limit = 100
+    limit = min(max(limit, 1), 10000)
+    event_type = request.query_params.get("type")
+    store = state.collector.store if state.collector else None
+    if not store:
+        return JSONResponse({"events": [], "warning": "metrics unavailable"})
+    events = await store.get_events(limit=limit, event_type=event_type)
+    return JSONResponse({"events": events})
+
+
+def _handle_static_file(path_str: str) -> FileResponse | HTMLResponse:
+    """Shared logic for serving static files with path-traversal protection."""
+    file_path = (STATIC_DIR / path_str).resolve()
+    if not str(file_path).startswith(str(STATIC_DIR_RESOLVED)):
+        return HTMLResponse("<h1>Forbidden</h1>", status_code=403)
+    if not file_path.exists() or not file_path.is_file():
+        return HTMLResponse("<h1>Not Found</h1>", status_code=404)
+    return FileResponse(str(file_path))
+
+
 def create_monitoring_app(state: Any) -> Starlette:
     """Create a Starlette sub-application for monitoring endpoints and the dashboard.
 
@@ -50,58 +121,27 @@ def create_monitoring_app(state: Any) -> Starlette:
 
     async def health_handler(request: Request) -> JSONResponse:
         """Handle GET /health."""
-        response = build_health_response(state)
-        return JSONResponse(response, status_code=get_health_status_code(response))
+        return _make_health_response(state)
 
     async def metrics_handler(request: Request) -> JSONResponse:
         """Handle GET /metrics."""
-        return JSONResponse(build_metrics_response(state))
+        return _make_metrics_response(state)
 
     async def dashboard_handler(request: Request) -> HTMLResponse:
         """Handle GET /dashboard -- serve the cached HTML page."""
-        if _cached_html is not None:
-            return HTMLResponse(_cached_html)
-        return HTMLResponse("<h1>Dashboard not found</h1>", status_code=404)
+        return _make_dashboard_response(_cached_html)
 
     async def api_current(request: Request) -> JSONResponse:
         """Handle GET /dashboard/api/current -- live metrics snapshot."""
-        return JSONResponse(build_metrics_response(state))
+        return _make_metrics_response(state)
 
     async def api_history(request: Request) -> JSONResponse:
-        """Handle GET /dashboard/api/history -- time-series history.
-
-        Query params: ``metric`` (default ``pool.utilization_pct``),
-        ``hours`` (default ``1``, clamped to [0.01, 720]).
-        """
-        metric = request.query_params.get("metric", "pool.utilization_pct")
-        try:
-            hours = float(request.query_params.get("hours", "1"))
-        except (ValueError, TypeError):
-            hours = 1.0
-        hours = min(max(hours, 0.01), 720.0)
-        store = state.collector.store if state.collector else None
-        if not store:
-            return JSONResponse({"data": [], "warning": "metrics unavailable"})
-        data = await store.get_history(metric, hours)
-        return JSONResponse({"data": data})
+        """Handle GET /dashboard/api/history -- delegates to shared handler."""
+        return await _handle_api_history(request, state)
 
     async def api_events(request: Request) -> JSONResponse:
-        """Handle GET /dashboard/api/events -- recent event log.
-
-        Query params: ``limit`` (default ``100``, clamped to [1, 10000]),
-        ``type`` (optional event type filter).
-        """
-        try:
-            limit = int(request.query_params.get("limit", "100"))
-        except (ValueError, TypeError):
-            limit = 100
-        limit = min(max(limit, 1), 10000)
-        event_type = request.query_params.get("type")
-        store = state.collector.store if state.collector else None
-        if not store:
-            return JSONResponse({"events": [], "warning": "metrics unavailable"})
-        events = await store.get_events(limit=limit, event_type=event_type)
-        return JSONResponse({"events": events})
+        """Handle GET /dashboard/api/events -- delegates to shared handler."""
+        return await _handle_api_events(request, state)
 
     routes = [
         Route("/health", health_handler),
@@ -146,77 +186,37 @@ def register_monitoring_routes(mcp: FastMCP, state: Any) -> None:
     @mcp.custom_route("/health", methods=["GET"])
     async def health_handler(request: Request) -> JSONResponse:
         """Handle GET /health."""
-        response = build_health_response(state)
-        return JSONResponse(response, status_code=get_health_status_code(response))
+        return _make_health_response(state)
 
     @mcp.custom_route("/metrics", methods=["GET"])
     async def metrics_handler(request: Request) -> JSONResponse:
         """Handle GET /metrics."""
-        return JSONResponse(build_metrics_response(state))
+        return _make_metrics_response(state)
 
     @mcp.custom_route("/dashboard", methods=["GET"])
     async def dashboard_handler(request: Request) -> HTMLResponse:
         """Handle GET /dashboard -- serve the cached HTML page."""
-        if _cached_html is not None:
-            return HTMLResponse(_cached_html)
-        return HTMLResponse("<h1>Dashboard not found</h1>", status_code=404)
+        return _make_dashboard_response(_cached_html)
 
     @mcp.custom_route("/dashboard/api/current", methods=["GET"])
     async def api_current(request: Request) -> JSONResponse:
         """Handle GET /dashboard/api/current -- live metrics snapshot."""
-        return JSONResponse(build_metrics_response(state))
+        return _make_metrics_response(state)
 
     @mcp.custom_route("/dashboard/api/history", methods=["GET"])
     async def api_history(request: Request) -> JSONResponse:
-        """Handle GET /dashboard/api/history -- time-series history.
-
-        Query params: ``metric`` (default ``pool.utilization_pct``),
-        ``hours`` (default ``1``, clamped to [0.01, 720]).
-        """
-        metric = request.query_params.get("metric", "pool.utilization_pct")
-        try:
-            hours = float(request.query_params.get("hours", "1"))
-        except (ValueError, TypeError):
-            hours = 1.0
-        hours = min(max(hours, 0.01), 720.0)
-        store = state.collector.store if state.collector else None
-        if not store:
-            return JSONResponse({"data": [], "warning": "metrics unavailable"})
-        data = await store.get_history(metric, hours)
-        return JSONResponse({"data": data})
+        """Handle GET /dashboard/api/history -- delegates to shared handler."""
+        return await _handle_api_history(request, state)
 
     @mcp.custom_route("/dashboard/api/events", methods=["GET"])
     async def api_events(request: Request) -> JSONResponse:
-        """Handle GET /dashboard/api/events -- recent event log.
-
-        Query params: ``limit`` (default ``100``, clamped to [1, 10000]),
-        ``type`` (optional event type filter).
-        """
-        try:
-            limit = int(request.query_params.get("limit", "100"))
-        except (ValueError, TypeError):
-            limit = 100
-        limit = min(max(limit, 1), 10000)
-        event_type = request.query_params.get("type")
-        store = state.collector.store if state.collector else None
-        if not store:
-            return JSONResponse({"events": [], "warning": "metrics unavailable"})
-        events = await store.get_events(limit=limit, event_type=event_type)
-        return JSONResponse({"events": events})
+        """Handle GET /dashboard/api/events -- delegates to shared handler."""
+        return await _handle_api_events(request, state)
 
     @mcp.custom_route("/dashboard/static/{path:path}", methods=["GET"])
     async def static_handler(request: Request) -> FileResponse | HTMLResponse:
-        """Handle GET /dashboard/static/{path} -- serve static files.
-
-        Rejects path-traversal attempts (paths containing ``..``).
-        Returns 404 for missing files.
-        """
+        """Handle GET /dashboard/static/{path} -- serve static files."""
         path_str = request.path_params.get("path", "")
-        file_path = (STATIC_DIR / path_str).resolve()
-        if not str(file_path).startswith(str(STATIC_DIR_RESOLVED)):
-            return HTMLResponse("<h1>Forbidden</h1>", status_code=403)
-        if not file_path.exists() or not file_path.is_file():
-            return HTMLResponse("<h1>Not Found</h1>", status_code=404)
-        return FileResponse(str(file_path))
+        return _handle_static_file(path_str)
 
     logger.debug("Registered 7 monitoring routes via custom_route()")

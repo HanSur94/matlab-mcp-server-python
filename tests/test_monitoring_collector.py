@@ -33,6 +33,22 @@ class TestCollectorInit:
         assert collector.start_time <= time.time()
         assert collector.start_time > 0
 
+    def test_cpu_percent_primed_at_init(self):
+        """psutil.Process().cpu_percent() must be called once during __init__ to prime the counter."""
+        from matlab_mcp.monitoring.collector import MetricsCollector
+        call_count = 0
+
+        class _FakeProcess:
+            def cpu_percent(self):
+                nonlocal call_count
+                call_count += 1
+                return 0.0
+
+        with patch("psutil.Process", return_value=_FakeProcess()):
+            MetricsCollector(_make_config())
+
+        assert call_count >= 1, "psutil.Process().cpu_percent() was not called during __init__"
+
     def test_collector_counters_start_at_zero(self):
         from matlab_mcp.monitoring.collector import MetricsCollector
         collector = MetricsCollector(_make_config())
