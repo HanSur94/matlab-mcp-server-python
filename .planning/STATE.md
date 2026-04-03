@@ -100,6 +100,10 @@ Recent decisions affecting current work:
 - [Phase 06]: Document both stdio and streamable HTTP for each agent — stdio for local single-user, HTTP for team/production
 - [Phase 06]: SSE transport gets deprecation notice in agent-onboarding.md; no working SSE configs provided — Codex CLI notes SSE as root cause of original connectivity failures
 
+### Roadmap Evolution
+
+- Phase 7 added: Fix all HIGH and MEDIUM issues from codebase review
+
 ### Pending Todos
 
 None yet.
