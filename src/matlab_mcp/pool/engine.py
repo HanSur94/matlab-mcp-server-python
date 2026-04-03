@@ -48,6 +48,8 @@ class MatlabEngineWrapper:
         self._engine: Any = None
         self._state: EngineState = EngineState.STOPPED
         self._idle_since: float = time.monotonic()
+        # Set by release() when reset_workspace() fails; health check retires this engine.
+        self._needs_replacement: bool = False
 
     # ------------------------------------------------------------------
     # State properties
@@ -200,6 +202,43 @@ class MatlabEngineWrapper:
                 logger.warning("[%s] Startup command failed on reset: %s", self.engine_id, cmd)
 
         logger.debug("[%s] Workspace reset complete", self.engine_id)
+
+    def set_workspace_var(self, name: str, value: Any) -> None:
+        """Set a variable in the MATLAB workspace via the engine API.
+
+        Parameters
+        ----------
+        name:
+            MATLAB variable name.
+        value:
+            Python value to assign; must be compatible with the MATLAB Engine API.
+
+        Raises
+        ------
+        RuntimeError
+            If the engine has not been started.
+        """
+        if self._engine is None:
+            raise RuntimeError(f"[{self.engine_id}] Engine is not started")
+        self._engine.workspace[name] = value
+
+    def get_workspace_vars(self) -> Any:
+        """Return the workspace proxy object for reading variables.
+
+        Returns
+        -------
+        Any
+            The matlab.engine workspace proxy; supports ``__getitem__`` and
+            ``__contains__`` so callers can read variables by name.
+
+        Raises
+        ------
+        RuntimeError
+            If the engine has not been started.
+        """
+        if self._engine is None:
+            raise RuntimeError(f"[{self.engine_id}] Engine is not started")
+        return self._engine.workspace
 
     # ------------------------------------------------------------------
     # State transitions
