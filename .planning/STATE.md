@@ -109,6 +109,12 @@ None yet.
 - Phase 3: `ctx.session_id` stability under streamable HTTP is a known open issue (#956). Needs Codex CLI end-to-end validation before phase is done. Mitigation: fall back to `ctx.client_id` when `ctx.session_id` is None.
 - Phase 5: Windows 10 non-admin CI environment may need a dedicated VM or non-admin test account if GitHub Actions Windows runners run as admin.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260403-lxg | Add CI integration test for MCP server-client connection | 2026-04-03 | 20d15fd | [260403-lxg-add-ci-integration-test-for-mcp-server-c](./quick/260403-lxg-add-ci-integration-test-for-mcp-server-c/) |
+
 ## Session Continuity
 
 Last session: 2026-04-03T13:53:03.641Z
