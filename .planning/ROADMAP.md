@@ -26,10 +26,10 @@
 **Plans:** 7 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Security: expand blocklist, fix empty-token auth, session ID sanitization
-- [ ] 07-02-PLAN.md — Security: centralize check_code in JobExecutor
-- [ ] 07-03-PLAN.md — Pool/Engine: release leak, start timeout, acquire race, workspace API
-- [ ] 07-04-PLAN.md — Jobs/Session: state machine guards, TOCTOU, background task tracking
+- [x] 07-01-PLAN.md — Security: expand blocklist, fix empty-token auth, session ID sanitization
+- [x] 07-02-PLAN.md — Security: centralize check_code in JobExecutor
+- [x] 07-03-PLAN.md — Pool/Engine: release leak, start timeout, acquire race, workspace API
+- [x] 07-04-PLAN.md — Jobs/Session: state machine guards, TOCTOU, background task tracking
 - [ ] 07-05-PLAN.md — Server/Config: deprecations, dead attrs, YAML errors, CORS
 - [x] 07-06-PLAN.md — Monitoring: SQL limits, query clamping, path traversal, route dedup
 - [ ] 07-07-PLAN.md — Tests: async conversion, shared fixtures, scale-down coverage, assertions

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 07-03 pool resource safety and engine workspace API
-last_updated: "2026-04-03T18:49:14.725Z"
+stopped_at: Completed 07-04 job/session state machine fixes
+last_updated: "2026-04-03T18:57:07.726Z"
 last_activity: 2026-04-03
 progress:
-  total_phases: 7
-  completed_phases: 6
-  total_plans: 12
-  completed_plans: 13
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 7
+  completed_plans: 5
   percent: 67
 ---
 
@@ -64,6 +64,7 @@ Progress: [███████░░░] 67%
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
 | Phase 06 P02 | 2 | 1 tasks | 1 files |
 | Phase 07 P03 | 15 | 2 tasks | 3 files |
+| Phase 07 P04 | 7 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Set engine._needs_replacement=True on reset failure — defers retirement to health check rather than discarding immediately
 - [Phase 07]: Issue 22 health check drain documented with comment only — drain-and-refill pattern is correct, just undocumented
 - [Phase 07]: Workspace API added to engine.py in plan 03; executor.py migration deferred to plan 04 per spec
+- [Phase 07]: _VALID_TRANSITIONS dict drives all mark_* guards — single source of truth for valid state transitions
+- [Phase 07]: get_or_create_default holds lock for entire check-and-create to close TOCTOU window
+- [Phase 07]: executor.shutdown() cancels background tasks before pool.stop() to prevent orphaned tasks
 
 ### Pending Todos
 
@@ -123,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T18:49:14.721Z
-Stopped at: Completed 07-03 pool resource safety and engine workspace API
+Last session: 2026-04-03T18:57:07.723Z
+Stopped at: Completed 07-04 job/session state machine fixes
 Resume file: None
