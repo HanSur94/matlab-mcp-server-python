@@ -85,6 +85,7 @@ class SecurityConfig(BaseModel):
             "system", "unix", "dos", "!",
             "eval", "feval", "evalc", "evalin", "assignin",
             "perl", "python",
+            "str2func", "builtin", "run",
         ]
     )
     max_upload_size_mb: int = 100
@@ -303,4 +304,10 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
     data = _apply_env_overrides(data)
     config = AppConfig.model_validate(data)
     config.resolve_paths(config_dir)
+
+    if not config.security.blocked_functions_enabled:
+        logger.warning(
+            "Security: blocked_functions_enabled=False — ALL code execution is unrestricted"
+        )
+
     return config

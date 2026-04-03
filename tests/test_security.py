@@ -50,6 +50,26 @@ class TestBlockedFunctionError:
 # check_code — blocked functions
 # ---------------------------------------------------------------------------
 
+class TestCheckCodeDefaultBlocklistExpanded:
+    """Tests for newly added blocked functions: str2func, builtin, run, and eval."""
+
+    def test_blocks_eval_call(self, default_validator):
+        with pytest.raises(BlockedFunctionError, match="eval"):
+            default_validator.check_code("eval('disp(1)')")
+
+    def test_blocks_str2func_call(self, default_validator):
+        with pytest.raises(BlockedFunctionError, match="str2func"):
+            default_validator.check_code("str2func('system')")
+
+    def test_blocks_builtin_call(self, default_validator):
+        with pytest.raises(BlockedFunctionError, match="builtin"):
+            default_validator.check_code("builtin('system', 'whoami')")
+
+    def test_blocks_run_call(self, default_validator):
+        with pytest.raises(BlockedFunctionError, match="run"):
+            default_validator.check_code("run('malicious_script')")
+
+
 class TestCheckCodeBlockedFunctions:
     def test_blocks_system_call(self, default_validator):
         with pytest.raises(BlockedFunctionError, match="system"):

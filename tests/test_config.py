@@ -342,6 +342,28 @@ class TestTokenWarning:
 # ---------------------------------------------------------------------------
 
 
+class TestSecurityDisableWarning:
+    """Verify load_config emits a warning when blocked_functions_enabled=False."""
+
+    def test_security_disable_logs_warning(self, monkeypatch, caplog):
+        monkeypatch.setenv(
+            "MATLAB_MCP_SECURITY_BLOCKED_FUNCTIONS_ENABLED", "false"
+        )
+        with caplog.at_level(logging.WARNING, logger="matlab_mcp.config"):
+            cfg = load_config(None)
+        assert cfg.security.blocked_functions_enabled is False
+        assert "blocked_functions_enabled=False" in caplog.text
+
+    def test_no_warning_when_security_enabled(self, monkeypatch, caplog):
+        monkeypatch.delenv(
+            "MATLAB_MCP_SECURITY_BLOCKED_FUNCTIONS_ENABLED", raising=False
+        )
+        with caplog.at_level(logging.WARNING, logger="matlab_mcp.config"):
+            cfg = load_config(None)
+        assert cfg.security.blocked_functions_enabled is True
+        assert "blocked_functions_enabled=False" not in caplog.text
+
+
 class TestHITLConfig:
     """Tests for HITLConfig defaults and env var overrides."""
 

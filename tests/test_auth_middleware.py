@@ -209,6 +209,30 @@ class TestBearerAuthMiddleware:
         src = inspect.getsource(mod.BearerAuthMiddleware)
         assert "hmac.compare_digest" in src
 
+    def test_empty_token_configured_rejects_empty_bearer(self, monkeypatch):
+        """Empty-string MATLAB_MCP_AUTH_TOKEN disables auth (treated as no token)."""
+        # An empty env var must NOT be treated as a valid token
+        monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "")
+        middleware = BearerAuthMiddleware(dummy_app)
+        # Auth is disabled (no token), so all requests pass through
+        assert middleware._token is None
+        scope = make_http_scope(headers=[(b"authorization", b"Bearer ")])
+        captured = CapturedResponse()
+        import asyncio
+        asyncio.run(middleware(scope, dummy_receive, captured))
+        assert captured.status == 200
+
+    def test_whitespace_only_token_configured_disables_auth(self, monkeypatch):
+        """Whitespace-only MATLAB_MCP_AUTH_TOKEN disables auth (treated as no token)."""
+        monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "   ")
+        middleware = BearerAuthMiddleware(dummy_app)
+        assert middleware._token is None
+        scope = make_http_scope()
+        captured = CapturedResponse()
+        import asyncio
+        asyncio.run(middleware(scope, dummy_receive, captured))
+        assert captured.status == 200
+
     def test_no_basehttpmiddleware(self):
         """BearerAuthMiddleware must NOT inherit from BaseHTTPMiddleware."""
         try:

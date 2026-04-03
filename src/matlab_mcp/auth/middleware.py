@@ -50,7 +50,8 @@ class BearerAuthMiddleware:
 
     def __init__(self, app: ASGIApp) -> None:
         self._app = app
-        self._token: str | None = os.environ.get("MATLAB_MCP_AUTH_TOKEN")
+        raw = os.environ.get("MATLAB_MCP_AUTH_TOKEN", "").strip()
+        self._token: str | None = raw if raw else None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Process ASGI request, enforcing bearer token auth for HTTP requests."""
