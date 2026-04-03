@@ -78,23 +78,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev,monitoring]"
+      - name: Verify all modules load
+        run: |
+          python -c "from matlab_mcp.server import main; print('OK: server')"
+          python -c "from matlab_mcp.auth.middleware import BearerAuthMiddleware; print('OK: auth')"
+          python -c "from matlab_mcp.hitl.gate import request_execute_approval; print('OK: hitl')"
+          python -c "from matlab_mcp.config import HITLConfig; print('OK: HITLConfig')"
+      - name: Run tests (no MATLAB engine)
+        run: pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
+
+  test-windows-install-bat:
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Run install.bat (real user install path)
         shell: cmd
         run: call install.bat < nul
-      - name: Verify server loads via install.bat venv
+      - name: Verify install.bat produced working install
         shell: cmd
         run: |
           call .venv\Scripts\activate.bat
           python -c "from matlab_mcp.server import main; print('OK: server module loads')"
-          python -c "from matlab_mcp.auth.middleware import BearerAuthMiddleware; print('OK: auth module loads')"
-          python -c "from matlab_mcp.hitl.gate import request_execute_approval; print('OK: hitl module loads')"
-          python -c "from matlab_mcp.config import HITLConfig; print('OK: HITLConfig loads')"
-      - name: Install test deps and run tests
-        shell: cmd
-        run: |
-          call .venv\Scripts\activate.bat
-          pip install pytest pytest-asyncio pytest-timeout --quiet
-          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
   test-macos:
     needs: lint
@@ -130,15 +139,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run install.bat (real user install path)
-        shell: cmd
-        run: call install.bat < nul
-      - name: Run integration test via install.bat venv
-        shell: cmd
-        run: |
-          call .venv\Scripts\activate.bat
-          pip install pytest pytest-asyncio pytest-timeout httpx mcp --quiet
-          pytest tests/test_mcp_integration.py -v -m integration --timeout=60
+      - run: pip install -e ".[dev,monitoring]" pytest-timeout
+      - run: pytest tests/test_mcp_integration.py -v -m integration --timeout=60
 
   remote-integration-test:
     needs: lint
