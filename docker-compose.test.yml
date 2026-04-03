@@ -18,24 +18,7 @@ services:
     networks:
       - mcp-test-net
     healthcheck:
-      test:
-        - "CMD"
-        - "python"
-        - "-c"
-        - |
-          import urllib.request, json, sys
-          req = urllib.request.Request(
-              "http://localhost:8765/mcp",
-              data=json.dumps({"jsonrpc":"2.0","method":"initialize","id":0,
-                  "params":{"protocolVersion":"2024-11-05","capabilities":{},
-                  "clientInfo":{"name":"hc","version":"0.1"}}}).encode(),
-              headers={"Content-Type":"application/json",
-                  "Authorization":"Bearer test-token-for-ci"})
-          try:
-              r = urllib.request.urlopen(req, timeout=3)
-              sys.exit(0 if r.status < 500 else 1)
-          except Exception:
-              sys.exit(1)
+      test: ["CMD", "python", "-c", "import urllib.request,json,sys; r=urllib.request.urlopen(urllib.request.Request('http://localhost:8765/mcp',data=json.dumps({'jsonrpc':'2.0','method':'initialize','id':0,'params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'hc','version':'0.1'}}}).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer test-token-for-ci'}),timeout=3); sys.exit(0 if r.status<500 else 1)"]
       interval: 3s
       timeout: 5s
       retries: 15
