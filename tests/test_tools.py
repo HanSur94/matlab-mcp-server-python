@@ -213,6 +213,8 @@ class TestCheckCodeImpl:
         )
 
         assert isinstance(result, dict)
+        assert "status" in result
+        assert result["status"] in ("completed", "failed", "pending")
 
     async def test_check_code_temp_file_cleaned_up(self, tmp_path):
         """Temp .m file should be removed after check_code_impl."""
@@ -250,6 +252,7 @@ class TestGetWorkspaceImpl:
 
         assert isinstance(result, dict)
         assert "status" in result
+        assert result["status"] in ("completed", "failed", "pending")
 
     async def test_get_workspace_has_job_id(self):
         """get_workspace_impl result should contain a job_id."""

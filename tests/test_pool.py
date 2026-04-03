@@ -504,3 +504,133 @@ class TestPoolManagerHealthChecks:
         for e in patched_pool_manager._all_engines:
             assert e.is_alive is True
         await patched_pool_manager.stop()
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (Issue 37): Scale-down logic
+# ---------------------------------------------------------------------------
+
+
+class TestScaleDown:
+    async def test_scale_down_removes_idle_engine(self, app_config):
+        """An idle engine beyond the timeout should be stopped and removed."""
+        from matlab_mcp.pool.manager import EnginePoolManager
+
+        # Use min=1, max=3 so scale-down can remove above min
+        app_config.pool = PoolConfig(min_engines=1, max_engines=3, scale_down_idle_timeout=900)
+        PatchedWrapper = _patched_engine_wrapper_factory(app_config.pool, app_config.workspace)
+
+        manager = EnginePoolManager(app_config)
+
+        def patched_make_engine():
+            engine_id = f"engine-{manager._next_id}"
+            manager._next_id += 1
+            return PatchedWrapper(engine_id, manager._pool_config, manager._workspace_config)
+
+        manager._make_engine = patched_make_engine
+
+        await manager.start()
+        # Scale up to 3 engines by acquiring then releasing
+        e1 = await manager.acquire()
+        e2 = await manager.acquire()
+        e3 = await manager.acquire()
+        await manager.release(e1)
+        await manager.release(e2)
+        await manager.release(e3)
+        assert manager.get_status()["total"] == 3
+
+        # Force ALL idle engines' _idle_since far into the past to exceed scale_down_idle_timeout.
+        # The scale-down condition uses len(to_keep)+busy_count >= min_engines, so at least
+        # one engine must stay in to_keep before any can be removed. Setting all to long-idle
+        # ensures the second and beyond get pruned.
+        for eng in list(manager._all_engines):
+            eng._idle_since = time.monotonic() - 1000  # 1000s > 900s timeout
+
+        before_total = manager.get_status()["total"]
+        await manager.run_health_checks()
+        after_total = manager.get_status()["total"]
+
+        # At least one engine should have been removed (min_engines=1, had 3)
+        assert after_total < before_total
+        assert after_total >= 1  # must respect min_engines
+        await manager.stop()
+
+    async def test_scale_down_respects_min_engines(self, app_config):
+        """Idle engines at or below min_engines must not be removed."""
+        from matlab_mcp.pool.manager import EnginePoolManager
+
+        app_config.pool = PoolConfig(min_engines=2, max_engines=4, scale_down_idle_timeout=900)
+        PatchedWrapper = _patched_engine_wrapper_factory(app_config.pool, app_config.workspace)
+
+        manager = EnginePoolManager(app_config)
+
+        def patched_make_engine():
+            engine_id = f"engine-{manager._next_id}"
+            manager._next_id += 1
+            return PatchedWrapper(engine_id, manager._pool_config, manager._workspace_config)
+
+        manager._make_engine = patched_make_engine
+
+        await manager.start()
+        # Bring up to exactly min_engines (2) — scale up if needed
+        e1 = await manager.acquire()
+        e2 = await manager.acquire()
+        await manager.release(e1)
+        await manager.release(e2)
+        assert manager.get_status()["total"] == 2
+
+        # Force all engines to appear long-idle beyond scale_down_idle_timeout
+        for eng in list(manager._all_engines):
+            eng._idle_since = time.monotonic() - 2000
+
+        before_total = manager.get_status()["total"]
+        await manager.run_health_checks()
+        after_total = manager.get_status()["total"]
+
+        # None should be removed because we are at min_engines (2)
+        assert after_total == before_total
+        assert after_total == 2
+        await manager.stop()
+
+    async def test_scale_down_only_targets_idle_engines(self, app_config):
+        """Busy engines must never be removed; only idle-beyond-timeout engines above min."""
+        from matlab_mcp.pool.manager import EnginePoolManager
+
+        app_config.pool = PoolConfig(min_engines=1, max_engines=4, scale_down_idle_timeout=900)
+        PatchedWrapper = _patched_engine_wrapper_factory(app_config.pool, app_config.workspace)
+
+        manager = EnginePoolManager(app_config)
+
+        def patched_make_engine():
+            engine_id = f"engine-{manager._next_id}"
+            manager._next_id += 1
+            return PatchedWrapper(engine_id, manager._pool_config, manager._workspace_config)
+
+        manager._make_engine = patched_make_engine
+
+        await manager.start()
+        # Scale up to 3 engines
+        e1 = await manager.acquire()
+        e2 = await manager.acquire()
+        e3 = await manager.acquire()
+        # Keep e1 busy (do not release)
+        # Release e2 and e3 and force them to appear long-idle
+        await manager.release(e2)
+        await manager.release(e3)
+
+        for eng in list(manager._all_engines):
+            if eng.state == EngineState.IDLE:
+                eng._idle_since = time.monotonic() - 2000
+
+        busy_before = manager.get_status()["busy"]
+        assert busy_before == 1
+
+        await manager.run_health_checks()
+
+        # The busy engine must still be tracked (busy engines are never drained from _all_engines)
+        # Busy count should remain at 1
+        assert manager.get_status()["busy"] == 1
+
+        # Release the busy engine to clean up
+        await manager.release(e1)
+        await manager.stop()

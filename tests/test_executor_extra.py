@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 
 from matlab_mcp.config import AppConfig, ExecutionConfig, OutputConfig, PoolConfig, WorkspaceConfig
 from matlab_mcp.jobs.executor import JobExecutor
@@ -360,7 +362,7 @@ class TestBuildResult:
 class TestExecuteStartFailure:
     async def test_execute_failure_returns_failed(self) -> None:
         """When engine.execute() raises, the job should be marked failed."""
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
@@ -379,7 +381,7 @@ class TestExecuteStartFailure:
 
     async def test_execute_failure_releases_engine(self) -> None:
         """On start failure, the engine must be released back to the pool."""
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
@@ -392,7 +394,7 @@ class TestExecuteStartFailure:
 
     async def test_execute_failure_records_collector_event(self) -> None:
         """When a collector is present, a job_failed event should be recorded."""
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
@@ -443,6 +445,32 @@ class TestExecuteSyncTimeoutPromotion:
 # ---------------------------------------------------------------------------
 
 
+async def _wait_for_terminal_status(
+    tracker: JobTracker,
+    job_id: str,
+    timeout: float = 5.0,
+) -> None:
+    """Poll until the job reaches a terminal state (COMPLETED, FAILED, CANCELLED)."""
+    terminal = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        job = tracker.get_job(job_id)
+        if job is not None and job.status in terminal:
+            return
+        await asyncio.sleep(0.01)
+    pytest.fail(f"Job {job_id!r} did not reach a terminal state within {timeout}s")
+
+
+async def _wait_for_engine_idle(wrapper: MatlabEngineWrapper, timeout: float = 5.0) -> None:
+    """Poll until the engine is IDLE."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        if wrapper.state == EngineState.IDLE:
+            return
+        await asyncio.sleep(0.01)
+    pytest.fail(f"Engine did not become IDLE within {timeout}s")
+
+
 class TestWaitForCompletion:
     async def test_async_job_completes(self) -> None:
         """A promoted async job should eventually be marked completed."""
@@ -454,8 +482,7 @@ class TestWaitForCompletion:
         assert result["status"] == "pending"
         job_id = result["job_id"]
 
-        # Wait for the background task to finish
-        await asyncio.sleep(0.5)
+        await _wait_for_terminal_status(tracker, job_id)
 
         job = tracker.get_job(job_id)
         assert job is not None
@@ -471,7 +498,7 @@ class TestWaitForCompletion:
         assert result["status"] == "pending"
         job_id = result["job_id"]
 
-        await asyncio.sleep(0.5)
+        await _wait_for_terminal_status(tracker, job_id)
 
         job = tracker.get_job(job_id)
         assert job is not None
@@ -483,8 +510,10 @@ class TestWaitForCompletion:
         executor, tracker, wrapper, inner = _make_executor(
             sync_timeout=0, max_execution_time=10,
         )
-        await executor.execute("s1", "z = 3;")
-        await asyncio.sleep(0.5)
+        result = await executor.execute("s1", "z = 3;")
+        job_id = result["job_id"]
+
+        await _wait_for_engine_idle(wrapper)
 
         assert wrapper.state == EngineState.IDLE
 
@@ -494,8 +523,8 @@ class TestWaitForCompletion:
         executor, tracker, wrapper, inner = _make_executor(
             sync_timeout=0, max_execution_time=10, collector=collector,
         )
-        await executor.execute("s1", "a = 1;")
-        await asyncio.sleep(0.5)
+        result = await executor.execute("s1", "a = 1;")
+        await _wait_for_terminal_status(tracker, result["job_id"])
 
         # At least one call should be job_completed
         events = [call[0][0] for call in collector.record_event.call_args_list]
@@ -507,15 +536,15 @@ class TestWaitForCompletion:
         executor, tracker, wrapper, inner = _make_executor(
             sync_timeout=0, max_execution_time=10, collector=collector,
         )
-        await executor.execute("s1", "error('kaboom');")
-        await asyncio.sleep(0.5)
+        result = await executor.execute("s1", "error('kaboom');")
+        await _wait_for_terminal_status(tracker, result["job_id"])
 
         events = [call[0][0] for call in collector.record_event.call_args_list]
         assert "job_failed" in events
 
     async def test_async_release_failure_does_not_propagate(self) -> None:
         """If pool.release() raises in the background task, it should not crash."""
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
 
         class BrokenPool:
             async def acquire(self):
@@ -533,7 +562,7 @@ class TestWaitForCompletion:
         result = await executor.execute("s1", "b = 2;")
 
         assert result["status"] == "pending"
-        await asyncio.sleep(0.5)
+        await _wait_for_terminal_status(tracker, result["job_id"])
 
         job = tracker.get_job(result["job_id"])
         assert job is not None
