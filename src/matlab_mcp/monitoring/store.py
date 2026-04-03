@@ -170,9 +170,15 @@ class MetricsStore:
             return {}
 
     async def get_history(
-        self, metric_key: str, hours: float
+        self, metric_key: str, hours: float, max_rows: int = 10000
     ) -> List[Dict[str, Any]]:
-        """Return time-series rows for *metric_key* within the last *hours* hours."""
+        """Return time-series rows for *metric_key* within the last *hours* hours.
+
+        Args:
+            metric_key: Metric key in ``category.metric_name`` format.
+            hours: Number of hours to look back.
+            max_rows: Maximum number of rows to return (default 10000).
+        """
         if self._db is None:
             return []
         try:
@@ -185,9 +191,10 @@ class MetricsStore:
                 SELECT timestamp, value
                 FROM metrics
                 WHERE category = ? AND metric_name = ? AND timestamp >= ?
-                ORDER BY timestamp ASC;
+                ORDER BY timestamp ASC
+                LIMIT ?;
                 """,
-                (category, name, cutoff),
+                (category, name, cutoff, max_rows),
             )
             rows = await cursor.fetchall()
             return [{"timestamp": r[0], "value": r[1]} for r in rows]
@@ -333,6 +340,33 @@ class MetricsStore:
         except Exception as exc:
             logger.warning("get_aggregates failed: %s", exc)
             return {}
+
+    async def count_errors(self, hours: float = 24.0) -> int:
+        """Direct COUNT of error events within the given time window.
+
+        Args:
+            hours: Number of hours to look back (default 24.0).
+
+        Returns:
+            Integer count of error events in the time window.
+        """
+        if self._db is None:
+            return 0
+        try:
+            cutoff = (
+                datetime.now(timezone.utc) - timedelta(hours=hours)
+            ).isoformat()
+            error_types = list(ERROR_EVENT_TYPES)
+            placeholders = ",".join("?" for _ in error_types)
+            cursor = await self._db.execute(
+                f"SELECT COUNT(*) FROM events WHERE timestamp >= ? AND event_type IN ({placeholders})",
+                (cutoff, *error_types),
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as exc:
+            logger.warning("count_errors failed: %s", exc)
+            return 0
 
     # ------------------------------------------------------------------
     # Maintenance

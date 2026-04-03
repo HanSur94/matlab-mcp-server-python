@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR_RESOLVED = STATIC_DIR.resolve()
 
 
 def create_monitoring_app(state: Any) -> Starlette:
@@ -70,13 +71,14 @@ def create_monitoring_app(state: Any) -> Starlette:
         """Handle GET /dashboard/api/history -- time-series history.
 
         Query params: ``metric`` (default ``pool.utilization_pct``),
-        ``hours`` (default ``1``).
+        ``hours`` (default ``1``, clamped to [0.01, 720]).
         """
         metric = request.query_params.get("metric", "pool.utilization_pct")
         try:
             hours = float(request.query_params.get("hours", "1"))
         except (ValueError, TypeError):
             hours = 1.0
+        hours = min(max(hours, 0.01), 720.0)
         store = state.collector.store if state.collector else None
         if not store:
             return JSONResponse({"data": [], "warning": "metrics unavailable"})
@@ -86,13 +88,14 @@ def create_monitoring_app(state: Any) -> Starlette:
     async def api_events(request: Request) -> JSONResponse:
         """Handle GET /dashboard/api/events -- recent event log.
 
-        Query params: ``limit`` (default ``100``), ``type`` (optional
-        event type filter).
+        Query params: ``limit`` (default ``100``, clamped to [1, 10000]),
+        ``type`` (optional event type filter).
         """
         try:
             limit = int(request.query_params.get("limit", "100"))
         except (ValueError, TypeError):
             limit = 100
+        limit = min(max(limit, 1), 10000)
         event_type = request.query_params.get("type")
         store = state.collector.store if state.collector else None
         if not store:
@@ -168,13 +171,14 @@ def register_monitoring_routes(mcp: FastMCP, state: Any) -> None:
         """Handle GET /dashboard/api/history -- time-series history.
 
         Query params: ``metric`` (default ``pool.utilization_pct``),
-        ``hours`` (default ``1``).
+        ``hours`` (default ``1``, clamped to [0.01, 720]).
         """
         metric = request.query_params.get("metric", "pool.utilization_pct")
         try:
             hours = float(request.query_params.get("hours", "1"))
         except (ValueError, TypeError):
             hours = 1.0
+        hours = min(max(hours, 0.01), 720.0)
         store = state.collector.store if state.collector else None
         if not store:
             return JSONResponse({"data": [], "warning": "metrics unavailable"})
@@ -185,13 +189,14 @@ def register_monitoring_routes(mcp: FastMCP, state: Any) -> None:
     async def api_events(request: Request) -> JSONResponse:
         """Handle GET /dashboard/api/events -- recent event log.
 
-        Query params: ``limit`` (default ``100``), ``type`` (optional
-        event type filter).
+        Query params: ``limit`` (default ``100``, clamped to [1, 10000]),
+        ``type`` (optional event type filter).
         """
         try:
             limit = int(request.query_params.get("limit", "100"))
         except (ValueError, TypeError):
             limit = 100
+        limit = min(max(limit, 1), 10000)
         event_type = request.query_params.get("type")
         store = state.collector.store if state.collector else None
         if not store:
@@ -207,9 +212,9 @@ def register_monitoring_routes(mcp: FastMCP, state: Any) -> None:
         Returns 404 for missing files.
         """
         path_str = request.path_params.get("path", "")
-        if ".." in path_str:
+        file_path = (STATIC_DIR / path_str).resolve()
+        if not str(file_path).startswith(str(STATIC_DIR_RESOLVED)):
             return HTMLResponse("<h1>Forbidden</h1>", status_code=403)
-        file_path = STATIC_DIR / path_str
         if not file_path.exists() or not file_path.is_file():
             return HTMLResponse("<h1>Not Found</h1>", status_code=404)
         return FileResponse(str(file_path))

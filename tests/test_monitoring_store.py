@@ -121,6 +121,42 @@ class TestMetricsStoreRead:
         await store.close()
 
 
+class TestMetricsStoreLimit:
+    async def test_get_history_respects_max_rows(self, tmp_path):
+        from matlab_mcp.monitoring.store import MetricsStore
+        store = MetricsStore(str(tmp_path / "metrics.db"))
+        await store.initialize()
+        now = datetime.now(timezone.utc)
+        for i in range(100):
+            ts = (now - timedelta(minutes=100 - i)).isoformat()
+            await store.insert_metrics(ts, {"pool.utilization_pct": float(i)})
+        result = await store.get_history("pool.utilization_pct", hours=2, max_rows=10)
+        assert len(result) <= 10
+        await store.close()
+
+    async def test_count_errors_returns_int(self, tmp_path):
+        from matlab_mcp.monitoring.store import MetricsStore
+        store = MetricsStore(str(tmp_path / "metrics.db"))
+        await store.initialize()
+        await store.insert_event("job_failed", {"job_id": "j1"})
+        await store.insert_event("job_failed", {"job_id": "j2"})
+        await store.insert_event("job_completed", {"job_id": "j3"})
+        count = await store.count_errors(hours=1)
+        assert isinstance(count, int)
+        assert count >= 2
+        await store.close()
+
+    async def test_count_errors_excludes_non_error_events(self, tmp_path):
+        from matlab_mcp.monitoring.store import MetricsStore
+        store = MetricsStore(str(tmp_path / "metrics.db"))
+        await store.initialize()
+        await store.insert_event("job_completed", {"job_id": "j1"})
+        await store.insert_event("session_created", {"session_id_short": "abc"})
+        count = await store.count_errors(hours=1)
+        assert count == 0
+        await store.close()
+
+
 class TestMetricsStorePrune:
     async def test_prune_removes_old_data(self, tmp_path):
         from matlab_mcp.monitoring.store import MetricsStore

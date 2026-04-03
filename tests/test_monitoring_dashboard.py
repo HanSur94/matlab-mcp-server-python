@@ -271,3 +271,78 @@ class TestApiEventsRoute:
         state.collector.store.get_events.assert_called_once_with(
             limit=10, event_type=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Query param clamping
+# ---------------------------------------------------------------------------
+
+class TestQueryParamClamping:
+    def test_api_history_clamps_hours_max(self) -> None:
+        """hours=999999 should be clamped to 720 before being passed to store."""
+        state = _make_mock_state()
+        client = _make_client(state)
+        resp = client.get("/dashboard/api/history?hours=999999")
+        assert resp.status_code == 200
+        call_args = state.collector.store.get_history.call_args
+        hours_used = call_args[0][1] if call_args[0] else call_args[1].get("hours")
+        assert hours_used <= 720.0
+
+    def test_api_history_clamps_hours_min(self) -> None:
+        """hours=-100 should be clamped to 0.01."""
+        state = _make_mock_state()
+        client = _make_client(state)
+        resp = client.get("/dashboard/api/history?hours=-100")
+        assert resp.status_code == 200
+        call_args = state.collector.store.get_history.call_args
+        hours_used = call_args[0][1] if call_args[0] else call_args[1].get("hours")
+        assert hours_used >= 0.01
+
+    def test_api_events_clamps_limit_max(self) -> None:
+        """limit=99999 should be clamped to 10000."""
+        state = _make_mock_state()
+        client = _make_client(state)
+        resp = client.get("/dashboard/api/events?limit=99999")
+        assert resp.status_code == 200
+        call_args = state.collector.store.get_events.call_args
+        limit_used = call_args[1].get("limit", call_args[0][0] if call_args[0] else None)
+        assert limit_used <= 10000
+
+    def test_api_events_clamps_limit_min(self) -> None:
+        """limit=0 should be clamped to 1."""
+        state = _make_mock_state()
+        client = _make_client(state)
+        resp = client.get("/dashboard/api/events?limit=0")
+        assert resp.status_code == 200
+        call_args = state.collector.store.get_events.call_args
+        limit_used = call_args[1].get("limit", call_args[0][0] if call_args[0] else None)
+        assert limit_used >= 1
+
+
+# ---------------------------------------------------------------------------
+# Static file path traversal
+# ---------------------------------------------------------------------------
+
+class TestStaticPathTraversal:
+    def test_static_path_traversal_blocked(self) -> None:
+        """Path traversal attempts should return 403 Forbidden."""
+        from matlab_mcp.monitoring.dashboard import register_monitoring_routes
+        from unittest.mock import MagicMock
+        try:
+            from fastmcp import FastMCP
+        except ImportError:
+            import pytest
+            pytest.skip("FastMCP not available")
+
+        state = _make_mock_state()
+        mcp = FastMCP("test")
+        register_monitoring_routes(mcp, state)
+        # Build the ASGI app and use TestClient
+        from starlette.testclient import TestClient
+        app = mcp._get_asgi_app() if hasattr(mcp, "_get_asgi_app") else None
+        if app is None:
+            import pytest
+            pytest.skip("Cannot extract ASGI app from FastMCP in this version")
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.get("/dashboard/static/../../etc/passwd")
+        assert resp.status_code == 403
