@@ -6,6 +6,7 @@ directory and a set of associated jobs.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import tempfile
 import threading
@@ -18,6 +19,34 @@ from typing import Any, Callable, Dict, Optional
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SESSION_ID = "default"
+
+# Allow only safe characters in session IDs to prevent filesystem path traversal.
+# UUIDs, simple identifiers, and "default" all match this pattern.
+_SAFE_SESSION_ID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,128}$')
+
+
+def _sanitize_session_id(session_id: str) -> str:
+    """Validate session_id is safe for use as a filesystem path component.
+
+    Parameters
+    ----------
+    session_id:
+        The session identifier to validate.
+
+    Returns
+    -------
+    str
+        The unchanged session_id if it passes validation.
+
+    Raises
+    ------
+    ValueError
+        If session_id contains unsafe characters, slashes, is empty, or
+        exceeds 128 characters.
+    """
+    if not _SAFE_SESSION_ID_RE.match(session_id):
+        raise ValueError(f"Invalid session_id: {session_id!r}")
+    return session_id
 
 
 @dataclass
@@ -102,8 +131,19 @@ class SessionManager:
                     f"Maximum number of sessions reached ({self._max_sessions})"
                 )
 
-            session_id = session_id or str(uuid.uuid4())
+            # Generate a UUID when no session_id is provided (None), but pass
+            # explicit empty or invalid strings through to _sanitize_session_id
+            # so they are rejected with a clear error message.
+            effective_id = str(uuid.uuid4()) if session_id is None else session_id
+            session_id = _sanitize_session_id(effective_id)
             temp_dir = self._base_temp / session_id
+
+            # Defense-in-depth: verify resolved path stays under base directory
+            resolved = temp_dir.resolve()
+            base_resolved = self._base_temp.resolve()
+            if not str(resolved).startswith(str(base_resolved)):
+                raise ValueError(f"Session path escapes base directory: {session_id!r}")
+
             temp_dir.mkdir(parents=True, exist_ok=True)
 
             session = Session(session_id=session_id, temp_dir=str(temp_dir))

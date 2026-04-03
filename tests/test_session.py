@@ -108,6 +108,47 @@ class TestCreateSession:
 
 
 # ---------------------------------------------------------------------------
+# Session ID sanitization (path traversal protection)
+# ---------------------------------------------------------------------------
+
+class TestSessionIdSanitization:
+    def test_create_session_rejects_path_traversal(self, session_manager):
+        """Session IDs containing path traversal sequences must be rejected."""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            session_manager.create_session(session_id="../../etc")
+
+    def test_create_session_rejects_slashes(self, session_manager):
+        """Session IDs containing forward slashes must be rejected."""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            session_manager.create_session(session_id="foo/bar")
+
+    def test_create_session_accepts_uuid(self, session_manager):
+        """Standard UUID-formatted session IDs must be accepted."""
+        s = session_manager.create_session(session_id="550e8400-e29b-41d4-a716-446655440000")
+        assert s.session_id == "550e8400-e29b-41d4-a716-446655440000"
+
+    def test_create_session_rejects_empty(self, session_manager):
+        """Empty session ID must be rejected."""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            session_manager.create_session(session_id="")
+
+    def test_create_session_rejects_too_long(self, session_manager):
+        """Session IDs longer than 128 characters must be rejected."""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            session_manager.create_session(session_id="a" * 129)
+
+    def test_create_session_rejects_backslash(self, session_manager):
+        """Session IDs containing backslashes must be rejected."""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            session_manager.create_session(session_id="foo\\bar")
+
+    def test_create_session_accepts_default_id(self, session_manager):
+        """The literal string 'default' must be accepted as a session ID."""
+        s = session_manager.create_session(session_id="default")
+        assert s.session_id == "default"
+
+
+# ---------------------------------------------------------------------------
 # SessionManager.get_session
 # ---------------------------------------------------------------------------
 
