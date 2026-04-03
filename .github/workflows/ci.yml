@@ -120,6 +120,27 @@ jobs:
       - run: pip install -e ".[dev,monitoring]"
       - run: pytest tests/ -v -k "not matlab" --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
+  conda-test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: matlab-mcp
+          environment-file: environment.yml
+          auto-activate-base: false
+          python-version: "3.12"
+      - name: Verify all modules load
+        shell: bash -el {0}
+        run: |
+          python -c "from matlab_mcp.server import main; print('OK: server')"
+          python -c "from matlab_mcp.auth.middleware import BearerAuthMiddleware; print('OK: auth')"
+          python -c "from matlab_mcp.hitl.gate import request_execute_approval; print('OK: hitl')"
+      - name: Run unit tests
+        shell: bash -el {0}
+        run: pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
+
   integration-test:
     needs: lint
     runs-on: ubuntu-latest
