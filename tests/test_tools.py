@@ -7,39 +7,16 @@ from matlab_mcp.config import AppConfig, ExecutionConfig, HITLConfig, SecurityCo
 from matlab_mcp.jobs.executor import JobExecutor
 from matlab_mcp.jobs.tracker import JobTracker
 from matlab_mcp.security.validator import SecurityValidator
+from tests.conftest import make_mock_pool
 
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
 # ---------------------------------------------------------------------------
 
-def _make_mock_pool():
-    """Create a minimal mock engine pool using the MockMatlabEngine."""
-    from tests.mocks.matlab_engine_mock import MockMatlabEngine
-    from matlab_mcp.config import PoolConfig, WorkspaceConfig
-    from matlab_mcp.pool.engine import MatlabEngineWrapper, EngineState
-
-    mock_engine_inner = MockMatlabEngine()
-    pool_cfg = PoolConfig(min_engines=1, max_engines=2)
-    workspace_cfg = WorkspaceConfig()
-    wrapper = MatlabEngineWrapper("engine-0", pool_cfg, workspace_cfg)
-    wrapper._engine = mock_engine_inner
-    wrapper._state = EngineState.IDLE
-
-    class MockPool:
-        async def acquire(self):
-            wrapper.mark_busy()
-            return wrapper
-
-        async def release(self, engine):
-            engine.mark_idle()
-
-    return MockPool(), wrapper, mock_engine_inner
-
-
 def _make_executor(sync_timeout: int = 5):
     """Create a real JobExecutor backed by the mock pool."""
-    pool, wrapper, inner = _make_mock_pool()
+    pool, wrapper, inner = make_mock_pool()
     tracker = JobTracker()
     config = AppConfig()
     config.execution = ExecutionConfig(sync_timeout=sync_timeout)

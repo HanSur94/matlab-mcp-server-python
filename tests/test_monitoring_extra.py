@@ -47,7 +47,8 @@ def _make_config():
     return config
 
 
-def _make_mock_pool(total=4, available=2, busy=2, max_engines=10):
+def _make_status_pool(total=4, available=2, busy=2, max_engines=10):
+    """Create a minimal MagicMock pool that returns get_status() data."""
     pool = MagicMock()
     pool.get_status.return_value = {
         "total": total,
@@ -212,7 +213,7 @@ class TestCollectorSampleOnce:
 
         collector = MetricsCollector(_make_config())
         collector.store = store
-        collector.pool = _make_mock_pool(total=6, available=4, busy=2, max_engines=10)
+        collector.pool = _make_status_pool(total=6, available=4, busy=2, max_engines=10)
         collector.tracker = _make_mock_tracker(job_count=3)
         collector.sessions = _make_mock_sessions(count=5)
 
@@ -246,7 +247,7 @@ class TestCollectorSampleOnce:
 
         collector = MetricsCollector(_make_config())
         collector.store = None
-        collector.pool = _make_mock_pool()
+        collector.pool = _make_status_pool()
 
         # Should not raise
         await collector.sample_once()
@@ -370,7 +371,7 @@ class TestCollectorGetCurrentSnapshot:
         from matlab_mcp.monitoring.collector import MetricsCollector
 
         collector = MetricsCollector(_make_config())
-        collector.pool = _make_mock_pool(total=4, available=1, busy=3, max_engines=8)
+        collector.pool = _make_status_pool(total=4, available=1, busy=3, max_engines=8)
         collector.tracker = _make_mock_tracker(job_count=2)
         collector.sessions = _make_mock_sessions(count=7)
 

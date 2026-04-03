@@ -69,74 +69,67 @@ async def dummy_app(scope: dict, receive: Any, send: Any) -> None:
 
 class TestBearerAuthMiddleware:
 
-    def test_valid_token_passes(self, monkeypatch):
+    async def test_valid_token_passes(self, monkeypatch):
         """Valid Bearer token passes through to downstream app."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope(headers=[(b"authorization", b"Bearer abc123")])
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
-    def test_missing_auth_header_returns_401(self, monkeypatch):
+    async def test_missing_auth_header_returns_401(self, monkeypatch):
         """Missing Authorization header returns 401."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
 
-    def test_invalid_token_returns_401(self, monkeypatch):
+    async def test_invalid_token_returns_401(self, monkeypatch):
         """Wrong token returns 401."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "correcttoken")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope(headers=[(b"authorization", b"Bearer wrongtoken")])
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
 
-    def test_malformed_bearer_header_returns_401(self, monkeypatch):
+    async def test_malformed_bearer_header_returns_401(self, monkeypatch):
         """Basic auth instead of Bearer returns 401."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope(headers=[(b"authorization", b"Basic xyz")])
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
 
-    def test_health_bypass(self, monkeypatch):
+    async def test_health_bypass(self, monkeypatch):
         """Requests to /health bypass auth even when token is configured."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope(path="/health")
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
-    def test_options_bypass_auth(self, monkeypatch):
+    async def test_options_bypass_auth(self, monkeypatch):
         """OPTIONS requests bypass auth for CORS pre-flight support."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope(method="OPTIONS")
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
-    def test_no_token_configured_passes_all(self, monkeypatch):
+    async def test_no_token_configured_passes_all(self, monkeypatch):
         """When no MATLAB_MCP_AUTH_TOKEN is set, all requests pass through."""
         monkeypatch.delenv("MATLAB_MCP_AUTH_TOKEN", raising=False)
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
     def test_token_from_env_var(self, monkeypatch):
@@ -145,10 +138,9 @@ class TestBearerAuthMiddleware:
         middleware = BearerAuthMiddleware(dummy_app)
         assert middleware._token == "envtoken42"
 
-    def test_non_http_scope_passes_through(self, monkeypatch):
+    async def test_non_http_scope_passes_through(self, monkeypatch):
         """Non-HTTP scopes (e.g. websocket) pass through without auth check."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
-        BearerAuthMiddleware(dummy_app)
         scope = make_websocket_scope()
 
         received_scope = None
@@ -158,45 +150,41 @@ class TestBearerAuthMiddleware:
             received_scope = s
 
         middleware_recording = BearerAuthMiddleware(recording_app)
-        import asyncio
-        asyncio.run(middleware_recording(scope, dummy_receive, dummy_app))
+        await middleware_recording(scope, dummy_receive, dummy_app)
         # WebSocket scope passed through — no auth check means recording_app was called
         assert received_scope == scope
 
-    def test_401_body_is_json(self, monkeypatch):
+    async def test_401_body_is_json(self, monkeypatch):
         """401 response body is valid JSON with error and message fields."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
         body = json.loads(captured.body.decode())
         assert "error" in body
         assert "message" in body
         assert body["error"] == "unauthorized"
 
-    def test_401_has_www_authenticate_header(self, monkeypatch):
+    async def test_401_has_www_authenticate_header(self, monkeypatch):
         """401 response includes WWW-Authenticate: Bearer header."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
         assert b"www-authenticate" in captured.headers
         assert captured.headers[b"www-authenticate"] == b"Bearer"
 
-    def test_401_has_content_type_json(self, monkeypatch):
+    async def test_401_has_content_type_json(self, monkeypatch):
         """401 response has Content-Type: application/json."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
         middleware = BearerAuthMiddleware(dummy_app)
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 401
         assert b"content-type" in captured.headers
         assert b"application/json" in captured.headers[b"content-type"]
@@ -209,7 +197,7 @@ class TestBearerAuthMiddleware:
         src = inspect.getsource(mod.BearerAuthMiddleware)
         assert "hmac.compare_digest" in src
 
-    def test_empty_token_configured_rejects_empty_bearer(self, monkeypatch):
+    async def test_empty_token_configured_rejects_empty_bearer(self, monkeypatch):
         """Empty-string MATLAB_MCP_AUTH_TOKEN disables auth (treated as no token)."""
         # An empty env var must NOT be treated as a valid token
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "")
@@ -218,19 +206,17 @@ class TestBearerAuthMiddleware:
         assert middleware._token is None
         scope = make_http_scope(headers=[(b"authorization", b"Bearer ")])
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
-    def test_whitespace_only_token_configured_disables_auth(self, monkeypatch):
+    async def test_whitespace_only_token_configured_disables_auth(self, monkeypatch):
         """Whitespace-only MATLAB_MCP_AUTH_TOKEN disables auth (treated as no token)."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "   ")
         middleware = BearerAuthMiddleware(dummy_app)
         assert middleware._token is None
         scope = make_http_scope()
         captured = CapturedResponse()
-        import asyncio
-        asyncio.run(middleware(scope, dummy_receive, captured))
+        await middleware(scope, dummy_receive, captured)
         assert captured.status == 200
 
     def test_no_basehttpmiddleware(self):

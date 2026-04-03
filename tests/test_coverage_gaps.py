@@ -20,32 +20,15 @@ from matlab_mcp.jobs.tracker import JobTracker
 from matlab_mcp.pool.engine import EngineState, MatlabEngineWrapper
 from matlab_mcp.security.validator import SecurityValidator
 from tests.mocks.matlab_engine_mock import MockMatlabEngine
+from tests.conftest import make_mock_pool
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_mock_pool():
-    mock_engine_inner = MockMatlabEngine()
-    pool_cfg = PoolConfig(min_engines=1, max_engines=2)
-    workspace_cfg = WorkspaceConfig()
-    wrapper = MatlabEngineWrapper("engine-0", pool_cfg, workspace_cfg)
-    wrapper._engine = mock_engine_inner
-    wrapper._state = EngineState.IDLE
-
-    class MockPool:
-        async def acquire(self):
-            wrapper.mark_busy()
-            return wrapper
-        async def release(self, engine):
-            engine.mark_idle()
-
-    return MockPool(), wrapper, mock_engine_inner
-
-
 def _make_executor(sync_timeout=5):
-    pool, wrapper, inner = _make_mock_pool()
+    pool, wrapper, inner = make_mock_pool()
     tracker = JobTracker()
     config = AppConfig()
     config.execution = ExecutionConfig(sync_timeout=sync_timeout)

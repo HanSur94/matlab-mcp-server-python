@@ -6,6 +6,7 @@ import time
 
 from matlab_mcp.jobs.models import Job, JobStatus
 from matlab_mcp.jobs.tracker import JobTracker
+from tests.conftest import make_mock_pool
 
 
 # ===========================================================================
@@ -380,33 +381,6 @@ class TestJobTrackerPrune:
 # Task 8: Job Executor
 # ===========================================================================
 
-def _make_mock_pool():
-    """Create a minimal mock EnginePoolManager for executor tests."""
-    from tests.mocks.matlab_engine_mock import MockMatlabEngine
-
-    mock_engine_inner = MockMatlabEngine()
-
-    # Wrap it in a MatlabEngineWrapper-like object
-    from matlab_mcp.config import PoolConfig, WorkspaceConfig
-    from matlab_mcp.pool.engine import MatlabEngineWrapper
-
-    pool_cfg = PoolConfig(min_engines=1, max_engines=2)
-    workspace_cfg = WorkspaceConfig()
-    wrapper = MatlabEngineWrapper("engine-0", pool_cfg, workspace_cfg)
-    wrapper._engine = mock_engine_inner
-    wrapper._state = __import__("matlab_mcp.pool.engine", fromlist=["EngineState"]).EngineState.IDLE
-
-    class MockPool:
-        async def acquire(self):
-            wrapper.mark_busy()
-            return wrapper
-
-        async def release(self, engine):
-            engine.mark_idle()
-
-    return MockPool(), wrapper, mock_engine_inner
-
-
 def _make_app_config(sync_timeout: int = 5):
     from matlab_mcp.config import AppConfig, ExecutionConfig
     cfg = AppConfig()
@@ -417,7 +391,7 @@ def _make_app_config(sync_timeout: int = 5):
 class TestJobExecutorSync:
     async def test_sync_execution_returns_result(self):
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=5)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -429,7 +403,7 @@ class TestJobExecutorSync:
 
     async def test_sync_execution_job_is_completed(self):
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=5)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -441,7 +415,7 @@ class TestJobExecutorSync:
 
     async def test_sync_execution_injects_job_context(self):
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=5)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -455,7 +429,7 @@ class TestJobExecutorAsync:
     async def test_async_promotion_when_timeout_zero(self):
         """With sync_timeout=0, execution should be promoted to async."""
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=0)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -467,7 +441,7 @@ class TestJobExecutorAsync:
     async def test_async_promotion_job_tracked(self):
         """With sync_timeout=0, the job should be in the tracker."""
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=0)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -481,7 +455,7 @@ class TestJobExecutorAsync:
 class TestJobExecutorError:
     async def test_execution_error_marks_job_failed(self):
         from matlab_mcp.jobs.executor import JobExecutor
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=5)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
@@ -495,7 +469,7 @@ class TestJobExecutorError:
         """After a sync error, engine should be back in pool (IDLE state)."""
         from matlab_mcp.jobs.executor import JobExecutor
         from matlab_mcp.pool.engine import EngineState
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = _make_app_config(sync_timeout=5)
         executor = JobExecutor(pool=pool, tracker=tracker, config=config)
