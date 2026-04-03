@@ -1,0 +1,54 @@
+# Docker Compose test configuration for remote MCP integration test.
+#
+# Simulates two-machine scenario: PC A (client) connecting to PC B (server)
+# over a Docker network with bearer auth.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up --build --exit-code-from client
+#   docker compose -f docker-compose.test.yml down -v
+
+services:
+  server:
+    build: .
+    command: ["--inspect", "--transport", "streamablehttp"]
+    environment:
+      - MATLAB_MCP_AUTH_TOKEN=test-token-for-ci
+      - MATLAB_MCP_POOL_MIN_ENGINES=0
+    networks:
+      - mcp-test-net
+    healthcheck:
+      test:
+        - "CMD"
+        - "sh"
+        - "-c"
+        - |
+          curl -sf -X POST http://localhost:8765/mcp \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer test-token-for-ci" \
+            -d '{"jsonrpc":"2.0","method":"initialize","id":0,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"healthcheck","version":"0.1"}}}' \
+            --max-time 3 | grep -q '"result"'
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  client:
+    build: .
+    entrypoint:
+      - "sh"
+      - "-c"
+      - "pip install --quiet mcp httpx && python /app/tests/remote_client.py"
+    volumes:
+      - ./tests/remote_client.py:/app/tests/remote_client.py:ro
+    environment:
+      - MCP_SERVER_URL=http://server:8765/mcp
+      - MCP_AUTH_TOKEN=test-token-for-ci
+    networks:
+      - mcp-test-net
+    depends_on:
+      server:
+        condition: service_healthy
+
+networks:
+  mcp-test-net:
+    driver: bridge
