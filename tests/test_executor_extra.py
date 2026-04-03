@@ -771,8 +771,10 @@ class TestExecutorBackgroundTaskTracking:
         )
         await executor.execute("s1", "x = 1;")
 
-        # Wait for the background task to complete
-        await asyncio.sleep(0.5)
+        # Wait for the background task to complete (event-based, not sleep)
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while len(executor._background_tasks) > 0 and asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(0.05)
 
         # Done callback should have removed the task
         assert len(executor._background_tasks) == 0
