@@ -59,6 +59,7 @@ def mcp_server_process() -> Any:
     env = os.environ.copy()
     env["MATLAB_MCP_AUTH_TOKEN"] = _AUTH_TOKEN
     env["MATLAB_MCP_POOL_MIN_ENGINES"] = "0"
+    env["MATLAB_MCP_SERVER_HOST"] = _SERVER_HOST  # Force 127.0.0.1 (avoids Windows Firewall)
 
     cmd = [
         sys.executable,
