@@ -102,7 +102,17 @@ jobs:
   integration-test:
     needs: lint
     runs-on: ubuntu-latest
-    # Polls /mcp endpoint for readiness (not /health which may not be routed)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,monitoring]" pytest-timeout
+      - run: pytest tests/test_mcp_integration.py -v -m integration --timeout=60
+
+  integration-test-windows:
+    needs: lint
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
