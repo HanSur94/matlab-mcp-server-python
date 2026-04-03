@@ -63,6 +63,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "matlab: tests requiring a live MATLAB engine",
+    "integration: end-to-end MCP server integration tests",
 ]
 
 [tool.hatch.build.targets.wheel]
