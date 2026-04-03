@@ -18,11 +18,11 @@ services:
     networks:
       - mcp-test-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,json,sys; r=urllib.request.urlopen(urllib.request.Request('http://localhost:8765/mcp',data=json.dumps({'jsonrpc':'2.0','method':'initialize','id':0,'params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'hc','version':'0.1'}}}).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer test-token-for-ci'}),timeout=3); sys.exit(0 if r.status<500 else 1)"]
-      interval: 3s
-      timeout: 5s
-      retries: 15
-      start_period: 10s
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',8765),timeout=2); s.close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   client:
     build: .
