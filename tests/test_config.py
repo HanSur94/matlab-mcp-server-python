@@ -50,7 +50,6 @@ class TestDefaultValues:
         assert cfg.scale_down_idle_timeout == 900
         assert cfg.engine_start_timeout == 120
         assert cfg.health_check_interval == 60
-        assert cfg.proactive_warmup_threshold == 0.8
         assert cfg.queue_max_size == 50
         assert cfg.matlab_root is None
 
@@ -400,3 +399,47 @@ class TestHITLConfig:
         monkeypatch.setenv("MATLAB_MCP_HITL_ENABLED", "true")
         data = _apply_env_overrides({"hitl": {}})
         assert data["hitl"]["enabled"] is True
+
+
+# ---------------------------------------------------------------------------
+# Issue 34 / 26 / 18 / 19 / 33 — config model cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestConfigModelCleanup:
+    """Verify dead attrs removed, YAML errors handled, new fields present."""
+
+    def test_inspect_mode_default_false(self):
+        """AppConfig.inspect_mode defaults to False."""
+        config = AppConfig()
+        assert config.inspect_mode is False
+
+    def test_inspect_mode_settable(self):
+        """AppConfig.inspect_mode can be set to True at construction."""
+        config = AppConfig(inspect_mode=True)
+        assert config.inspect_mode is True
+
+    def test_config_dir_removed(self):
+        """AppConfig no longer has a _config_dir attribute in model_fields."""
+        assert "_config_dir" not in AppConfig.model_fields
+
+    def test_proactive_warmup_threshold_removed(self):
+        """PoolConfig no longer has proactive_warmup_threshold in model_fields."""
+        assert "proactive_warmup_threshold" not in PoolConfig.model_fields
+
+    def test_yaml_parse_error(self, tmp_path):
+        """Malformed YAML raises ValueError with clear message."""
+        bad_yaml = tmp_path / "bad_config.yaml"
+        bad_yaml.write_text("server:\n  name: [unclosed\n")
+        with pytest.raises(ValueError, match="Failed to parse config file"):
+            load_config(bad_yaml)
+
+    def test_cors_origins_default(self):
+        """ServerConfig.cors_origins defaults to ['*']."""
+        cfg = ServerConfig()
+        assert cfg.cors_origins == ["*"]
+
+    def test_cors_origins_custom(self):
+        """ServerConfig.cors_origins can be set to custom origins."""
+        cfg = ServerConfig(cors_origins=["http://localhost:3000", "https://example.com"])
+        assert cfg.cors_origins == ["http://localhost:3000", "https://example.com"]

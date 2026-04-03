@@ -30,6 +30,7 @@ class ServerConfig(BaseModel):
     result_dir: str = "./results"
     drain_timeout_seconds: int = 300
     stateless_http: bool = False
+    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
 
 
 class PoolConfig(BaseModel):
@@ -40,7 +41,6 @@ class PoolConfig(BaseModel):
     scale_down_idle_timeout: int = 900
     engine_start_timeout: int = 120
     health_check_interval: int = 60
-    proactive_warmup_threshold: float = 0.8
     queue_max_size: int = 50
     matlab_root: Optional[str] = None
 
@@ -177,9 +177,9 @@ class AppConfig(BaseModel):
     sessions: SessionsConfig = Field(default_factory=SessionsConfig)
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
     hitl: HITLConfig = Field(default_factory=HITLConfig)
-
-    # Internal: stored after resolution so validators can use it
-    _config_dir: Optional[Path] = None
+    # Runtime flag: set to True by --inspect CLI arg to skip MATLAB pool startup.
+    # exclude=True prevents this field from appearing in serialization output.
+    inspect_mode: bool = Field(default=False, exclude=True)
 
     @model_validator(mode="after")
     def validate_pool(self) -> "AppConfig":
@@ -294,7 +294,10 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
         path = Path(path)
         if path.exists():
             with open(path, "r", encoding="utf-8") as fh:
-                loaded = yaml.safe_load(fh) or {}
+                try:
+                    loaded = yaml.safe_load(fh) or {}
+                except yaml.YAMLError as exc:
+                    raise ValueError(f"Failed to parse config file {path}: {exc}") from exc
             data = loaded
             config_dir = path.parent
         else:
