@@ -1,3 +1,10 @@
+# Standalone install — works without cloning the repo.
+# Downloads matlab-mcp-python from PyPI.
+#
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate matlab-mcp
+#   matlab-mcp --inspect
 name: matlab-mcp
 channels:
   - conda-forge
@@ -6,4 +13,4 @@ dependencies:
   - python=3.12
   - pip
   - pip:
-    - -e ".[dev,monitoring]"
+    - matlab-mcp-python[monitoring]

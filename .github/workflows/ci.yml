@@ -127,8 +127,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          activate-environment: matlab-mcp
-          environment-file: environment.yml
+          activate-environment: matlab-mcp-dev
+          environment-file: environment-dev.yml
           auto-activate-base: false
           python-version: "3.12"
       - name: Verify all modules load

@@ -1,0 +1,18 @@
+# Developer install — requires repo clone (installs from local source).
+# Includes dev dependencies (pytest, ruff, etc).
+#
+# Usage:
+#   git clone https://github.com/HanSur94/matlab-mcp-server-python.git
+#   cd matlab-mcp-server-python
+#   conda env create -f environment-dev.yml
+#   conda activate matlab-mcp-dev
+#   pytest tests/ -x -q
+name: matlab-mcp-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - -e ".[dev,monitoring]"
