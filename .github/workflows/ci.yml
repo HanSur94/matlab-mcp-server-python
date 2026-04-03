@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev,monitoring]"
-      - run: pytest tests/ -v --cov=matlab_mcp --cov-report=xml --cov-report=term-missing
+      - run: pytest tests/ -v --ignore=tests/test_mcp_integration.py --cov=matlab_mcp --cov-report=xml --cov-report=term-missing
       - uses: codecov/codecov-action@v4
         if: matrix.python-version == '3.12'
         with:
@@ -97,7 +97,7 @@ jobs:
         run: |
           call .venv\Scripts\activate.bat
           pip install pytest pytest-asyncio pytest-cov --quiet
-          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
+          pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
   test-macos:
     needs: lint
@@ -112,7 +112,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev,monitoring]"
-      - run: pytest tests/ -v -k "not matlab" -W ignore::pytest.PytestUnraisableExceptionWarning
+      - run: pytest tests/ -v -k "not matlab" --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
   integration-test:
     needs: lint
