@@ -809,7 +809,7 @@ class TestExecutorSecurityValidation:
         from matlab_mcp.config import SecurityConfig
         from matlab_mcp.security.validator import SecurityValidator
 
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
@@ -826,7 +826,7 @@ class TestExecutorSecurityValidation:
         from matlab_mcp.config import SecurityConfig
         from matlab_mcp.security.validator import SecurityValidator
 
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
@@ -845,7 +845,7 @@ class TestExecutorSecurityValidation:
 
     async def test_executor_without_security_does_not_block(self) -> None:
         """Executor without a security validator should not block any code."""
-        pool, wrapper, inner = _make_mock_pool()
+        pool, wrapper, inner = make_mock_pool()
         tracker = JobTracker()
         config = AppConfig()
         config.execution = ExecutionConfig(sync_timeout=5)
