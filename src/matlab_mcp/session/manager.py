@@ -111,6 +111,50 @@ class SessionManager:
     # Public API
     # ------------------------------------------------------------------
 
+    def _create_session_unlocked(self, *, session_id: Optional[str] = None) -> Session:
+        """Create a session without acquiring the lock (caller must hold it).
+
+        Parameters
+        ----------
+        session_id
+            Optional explicit ID for the session.  When *None* (the default),
+            a random UUID is generated.
+
+        Raises
+        ------
+        RuntimeError
+            If the maximum number of sessions has been reached.
+        ValueError
+            If the session_id contains unsafe characters or escapes the base dir.
+        """
+        if len(self._sessions) >= self._max_sessions:
+            raise RuntimeError(
+                f"Maximum number of sessions reached ({self._max_sessions})"
+            )
+
+        # Generate a UUID when no session_id is provided (None), but pass
+        # explicit empty or invalid strings through to _sanitize_session_id
+        # so they are rejected with a clear error message.
+        effective_id = str(uuid.uuid4()) if session_id is None else session_id
+        safe_id = _sanitize_session_id(effective_id)
+        temp_dir = self._base_temp / safe_id
+
+        # Defense-in-depth: verify resolved path stays under base directory
+        resolved = temp_dir.resolve()
+        base_resolved = self._base_temp.resolve()
+        if not str(resolved).startswith(str(base_resolved)):
+            raise ValueError(f"Session path escapes base directory: {safe_id!r}")
+
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        session = Session(session_id=safe_id, temp_dir=str(temp_dir))
+        self._sessions[safe_id] = session
+        logger.info("Session created: %s (temp_dir=%s, total=%d/%d)",
+                     safe_id[:8], temp_dir, len(self._sessions), self._max_sessions)
+        if self._collector:
+            self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
+        return session
+
     def create_session(self, *, session_id: Optional[str] = None) -> Session:
         """Create a new session with a temporary directory.
 
@@ -126,33 +170,7 @@ class SessionManager:
             If the maximum number of sessions has been reached.
         """
         with self._lock:
-            if len(self._sessions) >= self._max_sessions:
-                raise RuntimeError(
-                    f"Maximum number of sessions reached ({self._max_sessions})"
-                )
-
-            # Generate a UUID when no session_id is provided (None), but pass
-            # explicit empty or invalid strings through to _sanitize_session_id
-            # so they are rejected with a clear error message.
-            effective_id = str(uuid.uuid4()) if session_id is None else session_id
-            session_id = _sanitize_session_id(effective_id)
-            temp_dir = self._base_temp / session_id
-
-            # Defense-in-depth: verify resolved path stays under base directory
-            resolved = temp_dir.resolve()
-            base_resolved = self._base_temp.resolve()
-            if not str(resolved).startswith(str(base_resolved)):
-                raise ValueError(f"Session path escapes base directory: {session_id!r}")
-
-            temp_dir.mkdir(parents=True, exist_ok=True)
-
-            session = Session(session_id=session_id, temp_dir=str(temp_dir))
-            self._sessions[session_id] = session
-            logger.info("Session created: %s (temp_dir=%s, total=%d/%d)",
-                         session_id[:8], temp_dir, len(self._sessions), self._max_sessions)
-            if self._collector:
-                self._collector.record_event("session_created", {"session_id_short": session.session_id[-8:]})
-            return session
+            return self._create_session_unlocked(session_id=session_id)
 
     def get_session(self, session_id: str) -> Optional[Session]:
         """Return the session with the given ID, or None if not found."""
@@ -160,12 +178,16 @@ class SessionManager:
             return self._sessions.get(session_id)
 
     def get_or_create_default(self) -> Session:
-        """Return (or create) the default session for single-user stdio mode."""
+        """Return (or create) the default session for single-user stdio mode.
+
+        Holds the lock for the entire check-and-create sequence to prevent
+        TOCTOU races under concurrent access.
+        """
         with self._lock:
             session = self._sessions.get(_DEFAULT_SESSION_ID)
             if session is not None:
                 return session
-        return self.create_session(session_id=_DEFAULT_SESSION_ID)
+            return self._create_session_unlocked(session_id=_DEFAULT_SESSION_ID)
 
     def destroy_session(self, session_id: str) -> bool:
         """Destroy a session and remove its temporary directory.

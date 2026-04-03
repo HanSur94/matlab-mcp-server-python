@@ -176,6 +176,40 @@ class TestJobMarkCancelled:
 
 
 # ===========================================================================
+# Task 1 (Plan 04): Job state transition guards
+# ===========================================================================
+
+class TestJobTransitionGuards:
+    def test_mark_running_from_pending_succeeds(self):
+        """PENDING -> RUNNING is a valid transition."""
+        job = Job(session_id="s1", code="x = 1;")
+        job.mark_running("e1")
+        assert job.status == JobStatus.RUNNING
+
+    def test_mark_cancelled_from_completed_is_noop(self):
+        """Cancelling an already-completed job must be a safe no-op."""
+        job = Job(session_id="s1", code="x = 1;")
+        job.mark_running("e1")
+        job.mark_completed({})
+        job.mark_cancelled()
+        assert job.status == JobStatus.COMPLETED
+
+    def test_mark_running_from_completed_is_noop(self):
+        """Transitioning a completed job back to RUNNING must be ignored."""
+        job = Job(session_id="s1", code="x = 1;")
+        job.mark_running("e1")
+        job.mark_completed({})
+        job.mark_running("e2")
+        assert job.status == JobStatus.COMPLETED
+
+    def test_mark_failed_from_pending_is_noop(self):
+        """PENDING -> FAILED is not a valid transition; it must be ignored."""
+        job = Job(session_id="s1", code="x = 1;")
+        job.mark_failed("SomeError", "msg")
+        assert job.status == JobStatus.PENDING
+
+
+# ===========================================================================
 # Task 7: Job Tracker
 # ===========================================================================
 

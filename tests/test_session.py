@@ -186,6 +186,13 @@ class TestGetOrCreateDefault:
         retrieved = session_manager.get_session("default")
         assert retrieved is s
 
+    def test_get_or_create_default_is_idempotent(self, session_manager):
+        """Calling get_or_create_default() twice returns the same Session object."""
+        s1 = session_manager.get_or_create_default()
+        s2 = session_manager.get_or_create_default()
+        assert s1 is s2
+        assert s1.session_id == s2.session_id
+
 
 # ---------------------------------------------------------------------------
 # SessionManager.destroy_session

@@ -5,11 +5,14 @@ of MATLAB code execution requests.
 """
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(Enum):
@@ -23,6 +26,17 @@ class JobStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+# Valid state transitions for each status.
+# Terminal states (COMPLETED, FAILED, CANCELLED) have no allowed successors.
+_VALID_TRANSITIONS: dict[JobStatus, set[JobStatus]] = {
+    JobStatus.PENDING: {JobStatus.RUNNING, JobStatus.CANCELLED},
+    JobStatus.RUNNING: {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.COMPLETED: set(),
+    JobStatus.FAILED: set(),
+    JobStatus.CANCELLED: set(),
+}
 
 
 @dataclass
@@ -74,15 +88,41 @@ class Job:
     # State transitions
     # ------------------------------------------------------------------
 
+    def _transition_to(self, new_status: JobStatus) -> bool:
+        """Attempt a state transition. Returns True if allowed, False if no-op.
+
+        Parameters
+        ----------
+        new_status:
+            The target status to transition to.
+
+        Returns
+        -------
+        bool
+            True when the transition was applied; False when it is not valid
+            from the current state (e.g. cancel on an already-completed job).
+        """
+        allowed = _VALID_TRANSITIONS.get(self.status, set())
+        if new_status not in allowed:
+            logger.debug(
+                "[%s] Ignoring transition %s -> %s (not allowed)",
+                self.job_id[:8], self.status.name, new_status.name,
+            )
+            return False
+        self.status = new_status
+        return True
+
     def mark_running(self, engine_id: str) -> None:
         """Transition job to RUNNING state."""
-        self.status = JobStatus.RUNNING
+        if not self._transition_to(JobStatus.RUNNING):
+            return
         self.engine_id = engine_id
         self.started_at = time.time()
 
     def mark_completed(self, result: Any) -> None:
         """Transition job to COMPLETED state with a result."""
-        self.status = JobStatus.COMPLETED
+        if not self._transition_to(JobStatus.COMPLETED):
+            return
         self.result = result
         self.completed_at = time.time()
 
@@ -94,7 +134,8 @@ class Job:
         stack_trace: Optional[str] = None,
     ) -> None:
         """Transition job to FAILED state with error details."""
-        self.status = JobStatus.FAILED
+        if not self._transition_to(JobStatus.FAILED):
+            return
         self.error = {
             "type": error_type,
             "message": message,
@@ -105,7 +146,8 @@ class Job:
 
     def mark_cancelled(self) -> None:
         """Transition job to CANCELLED state."""
-        self.status = JobStatus.CANCELLED
+        if not self._transition_to(JobStatus.CANCELLED):
+            return
         self.completed_at = time.time()
 
     # ------------------------------------------------------------------
