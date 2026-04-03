@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import json
-import os
-from collections.abc import Awaitable, Callable
 from typing import Any
-import pytest
 
 from matlab_mcp.auth import BearerAuthMiddleware
 
@@ -151,7 +148,7 @@ class TestBearerAuthMiddleware:
     def test_non_http_scope_passes_through(self, monkeypatch):
         """Non-HTTP scopes (e.g. websocket) pass through without auth check."""
         monkeypatch.setenv("MATLAB_MCP_AUTH_TOKEN", "abc123")
-        middleware = BearerAuthMiddleware(dummy_app)
+        BearerAuthMiddleware(dummy_app)
         scope = make_websocket_scope()
 
         received_scope = None

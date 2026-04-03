@@ -18,7 +18,6 @@ from typing import Any
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client

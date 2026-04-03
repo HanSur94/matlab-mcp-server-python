@@ -739,14 +739,14 @@ def main() -> None:
     if args.generate_token:
         import secrets
         token = secrets.token_hex(32)
-        print(f"Generated MATLAB MCP auth token (64 hex chars):\n")
+        print("Generated MATLAB MCP auth token (64 hex chars):\n")
         print(f"  {token}\n")
-        print(f"Set the environment variable:\n")
-        print(f"  # Linux / macOS:")
+        print("Set the environment variable:\n")
+        print("  # Linux / macOS:")
         print(f"  export MATLAB_MCP_AUTH_TOKEN={token}\n")
-        print(f"  # Windows (cmd):")
+        print("  # Windows (cmd):")
         print(f"  set MATLAB_MCP_AUTH_TOKEN={token}\n")
-        print(f"  # Windows (PowerShell):")
+        print("  # Windows (PowerShell):")
         print(f"  $env:MATLAB_MCP_AUTH_TOKEN=\"{token}\"\n")
         sys.exit(0)
 
