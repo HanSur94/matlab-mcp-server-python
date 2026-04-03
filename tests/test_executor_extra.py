@@ -742,3 +742,66 @@ class TestExecuteSyncTimeout:
             job = tracker.get_job(result["job_id"])
             assert job is not None
             assert job.status in (JobStatus.COMPLETED, JobStatus.FAILED)
+
+
+# ---------------------------------------------------------------------------
+# Executor-level security validation (centralized check_code)
+# ---------------------------------------------------------------------------
+
+
+class TestExecutorSecurityValidation:
+    async def test_executor_rejects_blocked_code(self) -> None:
+        """Executor with security validator should reject blocked function calls."""
+        from matlab_mcp.config import SecurityConfig
+        from matlab_mcp.security.validator import SecurityValidator
+
+        pool, wrapper, inner = _make_mock_pool()
+        tracker = JobTracker()
+        config = AppConfig()
+        config.execution = ExecutionConfig(sync_timeout=5)
+        security = SecurityValidator(SecurityConfig())
+
+        executor = JobExecutor(pool=pool, tracker=tracker, config=config, security=security)
+        result = await executor.execute("test-session", "system('whoami')")
+
+        assert result["status"] == "failed"
+        assert "Blocked" in result["error"]["message"]
+
+    async def test_executor_allows_clean_code(self) -> None:
+        """Executor with security validator should allow clean (non-blocked) code."""
+        from matlab_mcp.config import SecurityConfig
+        from matlab_mcp.security.validator import SecurityValidator
+
+        pool, wrapper, inner = _make_mock_pool()
+        tracker = JobTracker()
+        config = AppConfig()
+        config.execution = ExecutionConfig(sync_timeout=5)
+        security = SecurityValidator(SecurityConfig())
+
+        executor = JobExecutor(pool=pool, tracker=tracker, config=config, security=security)
+        result = await executor.execute("test-session", "disp('hello')")
+
+        # Security check should pass — result should NOT be a blocked error
+        # (it may fail for other reasons in test env, but NOT due to security blocking)
+        if result.get("status") == "failed":
+            error_msg = (result.get("error") or {}).get("message", "")
+            assert "Blocked" not in error_msg, (
+                f"Clean code should not be blocked by security check: {error_msg}"
+            )
+
+    async def test_executor_without_security_does_not_block(self) -> None:
+        """Executor without a security validator should not block any code."""
+        pool, wrapper, inner = _make_mock_pool()
+        tracker = JobTracker()
+        config = AppConfig()
+        config.execution = ExecutionConfig(sync_timeout=5)
+
+        # No security= kwarg (defaults to None)
+        executor = JobExecutor(pool=pool, tracker=tracker, config=config)
+        # This code would be blocked if security were active, but it should pass here
+        result = await executor.execute("test-session", "disp('test')")
+
+        # Should not be a security-blocked failure
+        if result.get("status") == "failed":
+            error_msg = (result.get("error") or {}).get("message", "")
+            assert "Blocked" not in error_msg

@@ -35,12 +35,27 @@ class JobExecutor:
         A :class:`JobTracker` instance for storing job state.
     config:
         The full :class:`~matlab_mcp.config.AppConfig` instance.
+    security:
+        Optional :class:`~matlab_mcp.security.validator.SecurityValidator` instance.
+        When provided, ``check_code()`` is called on every ``execute()`` call
+        before any engine is acquired, covering all code paths (core tools,
+        custom tools, discovery tools).
+    collector:
+        Optional metrics collector for recording events.
     """
 
-    def __init__(self, pool: Any, tracker: JobTracker, config: Any, collector: Any = None) -> None:
+    def __init__(
+        self,
+        pool: Any,
+        tracker: JobTracker,
+        config: Any,
+        security: Any = None,
+        collector: Any = None,
+    ) -> None:
         self._pool = pool
         self._tracker = tracker
         self._config = config
+        self._security = security
         self._collector = collector
 
     # ------------------------------------------------------------------
@@ -67,6 +82,23 @@ class JobExecutor:
         Returns a dict with at minimum ``status`` and ``job_id`` keys.
         """
         sync_timeout = self._config.execution.sync_timeout
+
+        # 0. Security check — must run before acquiring engine or creating job
+        # Covers all code paths (core tools, custom tools, discovery tools).
+        if self._security is not None:
+            from matlab_mcp.security.validator import BlockedFunctionError
+            try:
+                self._security.check_code(code)
+            except BlockedFunctionError as exc:
+                return {
+                    "status": "failed",
+                    "error": {
+                        "type": "ValidationError",
+                        "message": f"Blocked: {exc}",
+                        "matlab_id": None,
+                        "stack_trace": None,
+                    },
+                }
 
         # 1. Create job
         job = self._tracker.create_job(session_id, code)

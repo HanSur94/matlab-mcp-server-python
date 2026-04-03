@@ -55,7 +55,7 @@ async def execute_code_impl(
         On security violation returns ``{"status": "failed", "error": {...}}``.
         On HITL denial returns ``{"status": "denied", "message": ...}``.
     """
-    # Check security blocklist first
+    # Defense-in-depth: executor also checks, but pre-check catches early
     try:
         security.check_code(code)
     except BlockedFunctionError as exc:
