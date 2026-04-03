@@ -23,7 +23,13 @@
 **Goal:** Fix all HIGH and MEDIUM severity issues identified in the full codebase review — covering security (centralize validation, expand blocklist, fix injection vectors), pool/engine (resource leaks, timeout enforcement, race conditions), jobs/session (TOCTOU fixes, state machine guards, shutdown handling), server/config (deprecation fixes, Pydantic compat, YAML error handling), monitoring (query bounds, SQL limits, route dedup), and test quality (coverage gaps, flaky tests, shared fixtures).
 **Requirements**: Codebase review findings (39 HIGH+MEDIUM issues)
 **Depends on:** v2.0 (all 6 phases complete)
-**Plans:** 0 plans
+**Plans:** 7 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 7 to break down)
+- [ ] 07-01-PLAN.md — Security: expand blocklist, fix empty-token auth, session ID sanitization
+- [ ] 07-02-PLAN.md — Security: centralize check_code in JobExecutor
+- [ ] 07-03-PLAN.md — Pool/Engine: release leak, start timeout, acquire race, workspace API
+- [ ] 07-04-PLAN.md — Jobs/Session: state machine guards, TOCTOU, background task tracking
+- [ ] 07-05-PLAN.md — Server/Config: deprecations, dead attrs, YAML errors, CORS
+- [ ] 07-06-PLAN.md — Monitoring: SQL limits, query clamping, path traversal, route dedup
+- [ ] 07-07-PLAN.md — Tests: async conversion, shared fixtures, scale-down coverage, assertions
