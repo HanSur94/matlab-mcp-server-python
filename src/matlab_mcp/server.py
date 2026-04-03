@@ -118,15 +118,15 @@ class MatlabMCPServer:
                 sid = ctx.session_id
                 if sid:
                     return sid
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to extract session_id from context: %s", exc)
             # Fallback for issue #956: try client_id when session_id unavailable
             try:
                 cid = ctx.client_id
                 if cid:
                     return cid
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to extract client_id from context: %s", exc)
         # stdio or fallback
         session = self.sessions.get_or_create_default()
         return session.session_id
@@ -231,7 +231,7 @@ def create_server(config: AppConfig) -> FastMCP:
             state.collector.store = state.store
 
         # Start engine pool (skip in inspect mode)
-        if getattr(config, '_inspect_mode', False):
+        if config.inspect_mode:
             logger.info('Inspect mode: skipping MATLAB engine pool startup')
         else:
             logger.info('Starting MATLAB engine pool...')
@@ -361,8 +361,9 @@ def create_server(config: AppConfig) -> FastMCP:
                     "Draining running jobs (timeout=%ds)...", drain_timeout
                 )
                 active_statuses = {JobStatus.PENDING, JobStatus.RUNNING}
-                deadline = asyncio.get_event_loop().time() + drain_timeout
-                while asyncio.get_event_loop().time() < deadline:
+                loop = asyncio.get_running_loop()
+                deadline = loop.time() + drain_timeout
+                while loop.time() < deadline:
                     running = [
                         j
                         for j in state.tracker.list_jobs()
@@ -860,7 +861,7 @@ def main() -> None:
 
     if args.inspect:
         config.pool.min_engines = 0
-        config._inspect_mode = True  # type: ignore[attr-defined]
+        config.inspect_mode = True
 
     server = create_server(config)
 
@@ -873,7 +874,7 @@ def main() -> None:
             Middleware(BearerAuthMiddleware),
             Middleware(
                 CORSMiddleware,
-                allow_origins=["*"],
+                allow_origins=config.server.cors_origins,
                 allow_methods=["GET", "POST", "OPTIONS"],
                 allow_headers=["Authorization", "Content-Type", "Accept"],
             ),

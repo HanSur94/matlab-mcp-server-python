@@ -148,6 +148,9 @@ class JobExecutor:
         if sync_timeout > 0:
             try:
                 loop = asyncio.get_running_loop()
+                # Inner timeout: MATLAB Engine API honors future.result(timeout=N).
+                # Outer timeout (+1s safety): asyncio fallback if Engine API ignores timeout.
+                # The inner fires first under normal conditions; outer is a safety net only.
                 raw_result = await asyncio.wait_for(
                     loop.run_in_executor(None, lambda: future.result(timeout=sync_timeout)),
                     timeout=sync_timeout + 1,
@@ -259,6 +262,9 @@ class JobExecutor:
         max_time = self._config.execution.max_execution_time
         loop = asyncio.get_running_loop()
         try:
+            # Inner timeout: MATLAB Engine API honors future.result(timeout=N).
+            # Outer timeout (+1s safety): asyncio fallback if Engine API ignores timeout.
+            # The inner fires first under normal conditions; outer is a safety net only.
             raw_result = await asyncio.wait_for(
                 loop.run_in_executor(None, lambda: future.result(timeout=max_time)),
                 timeout=max_time + 1,
