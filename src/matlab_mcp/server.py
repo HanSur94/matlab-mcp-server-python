@@ -87,14 +87,18 @@ class MatlabMCPServer:
         self.tracker = JobTracker(
             retention_seconds=config.sessions.job_retention_seconds
         )
+        # Security validator created before executor so it can be passed in
+        self.security = SecurityValidator(config.security, collector=self.collector)
+        # Pass security validator to executor for centralized check_code() on all code paths
+        # (covers custom tools, discovery tools that previously bypassed tool-level security checks)
         self.executor = JobExecutor(
             pool=self.pool,
             tracker=self.tracker,
             config=config,
+            security=self.security,
             collector=self.collector,
         )
         self.sessions = SessionManager(config, collector=self.collector)
-        self.security = SecurityValidator(config.security, collector=self.collector)
 
     # ------------------------------------------------------------------
     # Session helpers
