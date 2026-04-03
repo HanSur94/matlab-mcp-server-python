@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 07-04 job/session state machine fixes
-last_updated: "2026-04-03T18:57:07.726Z"
+stopped_at: Completed 07-05-PLAN.md
+last_updated: "2026-04-03T19:30:00.000Z"
 last_activity: 2026-04-03
 progress:
-  total_phases: 1
-  completed_phases: 0
-  total_plans: 7
-  completed_plans: 5
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 13
   percent: 67
 ---
 
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 07
+Plan: 05 (completed)
+Status: Plan 07-05 complete
 Last activity: 2026-04-03
 
 Progress: [███████░░░] 67%
@@ -63,8 +63,8 @@ Progress: [███████░░░] 67%
 | Phase 05 P02 | 1 | 1 tasks | 1 files |
 | Phase 05 P01 | 4 | 1 tasks | 6 files |
 | Phase 06 P02 | 2 | 1 tasks | 1 files |
-| Phase 07 P03 | 15 | 2 tasks | 3 files |
-| Phase 07 P04 | 7 | 2 tasks | 7 files |
+| Phase 07 P01 | 15 | 2 tasks | 7 files |
+| Phase 07 P05 | 20 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -101,12 +101,11 @@ Recent decisions affecting current work:
 - [Phase 05]: tempfile.gettempdir() for cross-platform temp paths: replaces hardcoded /tmp which fails on Windows
 - [Phase 06]: Document both stdio and streamable HTTP for each agent — stdio for local single-user, HTTP for team/production
 - [Phase 06]: SSE transport gets deprecation notice in agent-onboarding.md; no working SSE configs provided — Codex CLI notes SSE as root cause of original connectivity failures
-- [Phase 07]: Set engine._needs_replacement=True on reset failure — defers retirement to health check rather than discarding immediately
-- [Phase 07]: Issue 22 health check drain documented with comment only — drain-and-refill pattern is correct, just undocumented
-- [Phase 07]: Workspace API added to engine.py in plan 03; executor.py migration deferred to plan 04 per spec
-- [Phase 07]: _VALID_TRANSITIONS dict drives all mark_* guards — single source of truth for valid state transitions
-- [Phase 07]: get_or_create_default holds lock for entire check-and-create to close TOCTOU window
-- [Phase 07]: executor.shutdown() cancels background tasks before pool.stop() to prevent orphaned tasks
+- [Phase 07]: Session ID None vs empty-string distinction: use explicit None check in create_session to allow UUID auto-generation while rejecting explicit empty strings
+- [Phase 07]: str2func/builtin/run added to default blocklist to prevent dynamic bypass of existing blocked functions
+- [Phase 07 P05]: inspect_mode uses Field(exclude=True) so it does not appear in model serialization
+- [Phase 07 P05]: cors_origins defaults to ['*'] to maintain backward compatibility
+- [Phase 07 P05]: Double-timeout kept (not simplified) — comments added explaining inner vs outer roles
 
 ### Pending Todos
 
@@ -127,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T18:57:07.723Z
-Stopped at: Completed 07-04 job/session state machine fixes
+Last session: 2026-04-03T18:49:30.762Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
