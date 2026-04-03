@@ -315,7 +315,7 @@ if defined OFFLINE (
 ) else (
     if exist "%SOURCE_DIR%pyproject.toml" (
         echo  Installing from local source...
-        pip install "%SOURCE_DIR%." %PIP_TRUST% --no-cache-dir --quiet
+        pip install "%SOURCE_DIR%." %PIP_TRUST% --no-cache-dir --force-reinstall --quiet
     ) else (
         echo  Installing from PyPI...
         pip install matlab-mcp-python %PIP_TRUST% --quiet
