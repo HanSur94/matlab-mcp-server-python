@@ -238,6 +238,7 @@ class TestErrorResult:
     def test_error_result_structure(self) -> None:
         """_error_result should produce a dict with status, job_id, error."""
         job = Job(session_id="s1", code="bad;")
+        job.mark_running("engine-0")  # PENDING -> RUNNING required before FAILED
         job.mark_failed(error_type="RuntimeError", message="boom")
 
         result = JobExecutor._error_result(job)
@@ -722,6 +723,49 @@ class TestSafeSerializeNumpyReal:
                 sys.modules["numpy"] = old_np
             else:
                 sys.modules.pop("numpy", None)
+
+
+# ---------------------------------------------------------------------------
+# Background task tracking (Issues 13)
+# ---------------------------------------------------------------------------
+
+
+class TestExecutorBackgroundTaskTracking:
+    async def test_executor_tracks_background_tasks(self) -> None:
+        """Background tasks should be added to _background_tasks while running."""
+        executor, tracker, wrapper, inner = _make_executor(sync_timeout=0)
+
+        result = await executor.execute("s1", "pause(10);")
+        assert result["status"] == "pending"
+
+        # Background task should be tracked immediately after execute returns
+        assert len(executor._background_tasks) >= 1
+
+        # Clean up by shutting down
+        await executor.shutdown()
+
+    async def test_executor_shutdown_cancels_tasks(self) -> None:
+        """shutdown() should cancel all background tasks and clear the set."""
+        executor, tracker, wrapper, inner = _make_executor(sync_timeout=0)
+
+        await executor.execute("s1", "pause(10);")
+        assert len(executor._background_tasks) >= 1
+
+        await executor.shutdown()
+        assert len(executor._background_tasks) == 0
+
+    async def test_completed_task_removed_from_set(self) -> None:
+        """Tasks that complete naturally should be removed via done_callback."""
+        executor, tracker, wrapper, inner = _make_executor(
+            sync_timeout=0, max_execution_time=10,
+        )
+        await executor.execute("s1", "x = 1;")
+
+        # Wait for the background task to complete
+        await asyncio.sleep(0.5)
+
+        # Done callback should have removed the task
+        assert len(executor._background_tasks) == 0
 
 
 class TestExecuteSyncTimeout:

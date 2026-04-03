@@ -343,7 +343,10 @@ def create_server(config: AppConfig) -> FastMCP:
                 logger.info("Stopping monitoring HTTP server...")
                 monitoring_server.should_exit = True
             if monitoring_task is not None:
-                await monitoring_task
+                try:
+                    await asyncio.wait_for(monitoring_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Monitoring HTTP server shutdown timed out after 5s")
 
             # Cancel background tasks
             logger.info("Cancelling background tasks...")
@@ -368,6 +371,11 @@ def create_server(config: AppConfig) -> FastMCP:
                     if not running:
                         break
                     await asyncio.sleep(0.5)
+
+            # Cancel background completion tasks before stopping pool
+            if hasattr(state, 'executor') and state.executor is not None:
+                logger.info("Shutting down job executor background tasks...")
+                await state.executor.shutdown()
 
             # Stop the pool
             logger.info("Stopping MATLAB engine pool...")

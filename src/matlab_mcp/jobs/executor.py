@@ -57,6 +57,7 @@ class JobExecutor:
         self._config = config
         self._security = security
         self._collector = collector
+        self._background_tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -110,8 +111,15 @@ class JobExecutor:
         job.mark_running(engine.engine_id)
         logger.info("[job %s] Acquired engine %s — executing", job.job_id[:8], engine.engine_id)
 
-        # 3. Inject job context
-        self._inject_job_context(engine, job, temp_dir)
+        # 3. Inject job context — if this raises, release engine to avoid leak
+        try:
+            self._inject_job_context(engine, job, temp_dir)
+        except Exception as exc:
+            logger.error("[job %s] Failed to inject job context: %s: %s",
+                         job.job_id[:8], type(exc).__name__, exc)
+            job.mark_failed(error_type=type(exc).__name__, message=str(exc))
+            await self._pool.release(engine)
+            return self._error_result(job)
 
         # 4. Start background execution with stdout/stderr capture
         job._stdout = io.StringIO()
@@ -164,9 +172,11 @@ class JobExecutor:
                 # Promote to async
                 logger.info("[job %s] Sync timeout (%ds) — promoting to async background job",
                             job.job_id[:8], sync_timeout)
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self._wait_for_completion(job, engine, future, temp_dir)
                 )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
                 return {"status": "pending", "job_id": job.job_id}
             except Exception as exc:
                 logger.error("[job %s] Execution failed: %s: %s",
@@ -185,10 +195,25 @@ class JobExecutor:
                 return self._error_result(job)
         else:
             # sync_timeout == 0: immediately promote to async
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._wait_for_completion(job, engine, future, temp_dir)
             )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
             return {"status": "pending", "job_id": job.job_id}
+
+    async def shutdown(self) -> None:
+        """Cancel and await all background completion tasks.
+
+        Should be called during server shutdown before stopping the engine pool,
+        to ensure in-flight background jobs are cleanly cancelled.
+        """
+        tasks = list(self._background_tasks)
+        for t in tasks:
+            t.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._background_tasks.clear()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -207,13 +232,13 @@ class JobExecutor:
         Failures are silently logged at DEBUG level.
         """
         try:
-            engine._engine.workspace["__mcp_job_id__"] = job.job_id
+            engine.set_workspace_var("__mcp_job_id__", job.job_id)
         except Exception:
             logger.debug("Could not inject __mcp_job_id__ into workspace")
 
         if temp_dir is not None:
             try:
-                engine._engine.workspace["__mcp_temp_dir__"] = str(temp_dir)
+                engine.set_workspace_var("__mcp_temp_dir__", str(temp_dir))
             except Exception:
                 logger.debug("Could not inject __mcp_temp_dir__ into workspace")
 
@@ -304,7 +329,7 @@ class JobExecutor:
         # Capture workspace variables (excluding internal MCP variables)
         variables: dict = {}
         try:
-            for k, v in engine._engine.workspace.items():
+            for k, v in engine.get_workspace_vars().items():
                 if not k.startswith("__mcp_"):
                     variables[k] = self._safe_serialize(v)
         except Exception:
