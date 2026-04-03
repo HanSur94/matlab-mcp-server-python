@@ -13,6 +13,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any
 
@@ -70,11 +71,16 @@ def mcp_server_process() -> Any:
         "streamablehttp",
     ]
 
+    # Use temp file for stderr to avoid Windows pipe deadlock.
+    # On Windows, subprocess.PIPE for both stdout and stderr can deadlock
+    # when the FastMCP banner fills the pipe buffer before Uvicorn starts.
+    stderr_file = tempfile.NamedTemporaryFile(mode="w+", suffix=".log", delete=False)
+
     proc = subprocess.Popen(
         cmd,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=stderr_file,
     )
 
     # Poll /mcp until server is ready or timeout expires.
@@ -101,10 +107,12 @@ def mcp_server_process() -> Any:
             pass
         # Check if process already died
         if proc.poll() is not None:
-            stdout, stderr = proc.communicate()
+            stderr_file.seek(0)
+            stderr_text = stderr_file.read()
+            stderr_file.close()
             raise RuntimeError(
                 f"Server process exited early with code {proc.returncode}.\n"
-                f"stderr: {stderr.decode(errors='replace')}"
+                f"stderr: {stderr_text}"
             )
         time.sleep(_POLL_INTERVAL_S)
 
@@ -114,12 +122,15 @@ def mcp_server_process() -> Any:
             proc.wait(timeout=_TEARDOWN_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             proc.kill()
-        _, stderr = proc.communicate()
+        stderr_file.seek(0)
+        stderr_text = stderr_file.read()
+        stderr_file.close()
         raise RuntimeError(
             f"Server did not become ready within {_STARTUP_TIMEOUT_S}s.\n"
-            f"stderr: {stderr.decode(errors='replace')}"
+            f"stderr: {stderr_text}"
         )
 
+    stderr_file.close()
     yield proc
 
     # Teardown: send SIGTERM, wait, then SIGKILL if needed
