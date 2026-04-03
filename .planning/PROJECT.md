@@ -1,8 +1,8 @@
-# MATLAB MCP Server — v2.0 Milestone
+# MATLAB MCP Server
 
 ## What This Is
 
-A Python-based MCP server that lets AI coding agents (Claude Code, Codex CLI, etc.) execute MATLAB code, inspect workspaces, manage files, and monitor server health. It bridges the Model Context Protocol to MATLAB's Engine API with elastic pooling, session isolation, and async job orchestration.
+A Python-based MCP server that lets AI coding agents (Claude Code, Codex CLI, Cursor, etc.) execute MATLAB code, inspect workspaces, manage files, and monitor server health. It bridges the Model Context Protocol to MATLAB's Engine API with elastic pooling, session isolation, async job orchestration, bearer token authentication, human-in-the-loop approval gates, and streamable HTTP transport.
 
 ## Core Value
 
@@ -25,64 +25,54 @@ Any MCP-compatible coding agent can connect to MATLAB and run code securely — 
 - stdio and SSE transport support — existing
 - Configuration via YAML with environment variable overrides — existing
 - Inspect mode for starting without MATLAB — existing
+- ✓ FastMCP 3.2.0 upgrade with all breaking changes resolved — v2.0
+- ✓ Bearer token authentication on HTTP transports via ASGI middleware — v2.0
+- ✓ Streamable HTTP transport at /mcp with session routing — v2.0
+- ✓ Human-in-the-loop approval gates using elicitation API — v2.0
+- ✓ Windows 10 no-admin compatibility (127.0.0.1 default, cross-platform CI) — v2.0
+- ✓ Agent onboarding docs for Claude Code, Codex CLI, Cursor — v2.0
+- ✓ Windows 10 deployment guide — v2.0
 
 ### Active
 
-- [ ] Built-in token/API-key authentication for SSE/HTTP transport
-- [ ] Upgrade from FastMCP 2.x to FastMCP 3.0
-- [ ] Streamable HTTP transport (FastMCP 3.0 feature)
-- [ ] Easy agent onboarding — any MCP-compatible agent connects with minimal config
-- [ ] Windows 10 no-admin compatibility for all features
-- [ ] Production-hardened multi-user deployment
-- [ ] Cross-platform testing (Win10, macOS, Linux)
+(No active requirements — next milestone not yet defined)
 
 ### Out of Scope
 
-- OAuth2/OpenID Connect flows — too complex for v2, token auth is sufficient
+- OAuth2/OpenID Connect flows — too complex, token auth is sufficient
 - GUI installer — users install via pip, no admin needed
 - Mobile/web client — this is a server for AI coding agents
 - MATLAB Online/MATLAB Web integration — desktop MATLAB only
+- Per-tool scope enforcement — deferred to future version (AAUTH-01)
+- Token rotation without restart — deferred to future version (AAUTH-02)
 
 ## Context
 
-- Currently on FastMCP 2.14.5 with `<3.0.0` upper bound
-- SSE transport has a `require_proxy_auth` flag but no built-in auth — relies entirely on reverse proxy
-- Codex CLI had authentication failures trying to connect over SSE — the setup was too complex
-- stdio works for single-user but doesn't support multi-agent or remote scenarios
-- Docker support exists via docker-compose.yml
-- The server targets corporate/academic environments where users often lack admin rights on Windows
+- Running on FastMCP 3.2.0 with streamable HTTP transport at /mcp
+- Bearer token auth via MATLAB_MCP_AUTH_TOKEN env var, BearerAuthMiddleware (ASGI)
+- HITL approval gates configurable via config.yaml hitl section (disabled by default)
+- Default bind address 127.0.0.1 — avoids Windows Firewall UAC prompts
+- Cross-platform CI: Linux, Windows, macOS
+- 6,259 LOC Python, 840 unit tests, 1 integration test
+- SSE transport deprecated but still functional
 
 ## Constraints
 
-- **Tech stack**: Python 3.10+, must keep backward compat with existing config.yaml format
-- **Platform**: Must work on Windows 10 without admin rights (no service installation, no elevated ports)
-- **Dependency**: FastMCP 3.0 migration must not break existing stdio/SSE clients
-- **MATLAB**: Requires MATLAB R2022b+ with Engine API — this is an external user dependency
+- **Tech stack**: Python 3.10+, backward compat with existing config.yaml format
+- **Platform**: Works on Windows 10 without admin rights
+- **MATLAB**: Requires MATLAB R2022b+ with Engine API
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Token-in-header auth over OAuth | Simple, works with all agents, no redirect flows needed | — Pending |
-| FastMCP 3.0 upgrade | Access to streamable HTTP, built-in auth support, modern protocol features | — Pending |
-| Win10 no-admin as hard constraint | Primary user base is corporate/academic with restricted machines | — Pending |
-
-## Evolution
-
-This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd:transition`):
-1. Requirements invalidated? Move to Out of Scope with reason
-2. Requirements validated? Move to Validated with phase reference
-3. New requirements emerged? Add to Active
-4. Decisions to log? Add to Key Decisions
-5. "What This Is" still accurate? Update if drifted
-
-**After each milestone** (via `/gsd:complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+| Token-in-header auth over OAuth | Simple, works with all agents, no redirect flows | ✓ Good — works with Claude Code, Codex CLI, Cursor |
+| FastMCP 3.0 upgrade first | Gates auth, transport, and HITL APIs | ✓ Good — 752/755 tests passed on first try |
+| Win10 no-admin as hard constraint | Primary user base is corporate/academic | ✓ Good — 127.0.0.1 default avoids UAC |
+| Opaque hex tokens over JWT | Simpler, no expiry semantics, static rotation | ✓ Good — 64-char hex via --generate-token |
+| ASGI middleware for auth | Clean separation, works before FastMCP | ✓ Good — pure ASGI, no BaseHTTPMiddleware |
+| Elicitation API for HITL | FastMCP 3.x native, agent-compatible | ✓ Good — ctx.elicit() works across transports |
+| Config "streamablehttp" → FastMCP "streamable-http" | YAML-friendly config value, mapped at call site | ✓ Good — transparent to operators |
 
 ---
-*Last updated: 2026-04-01 after initialization*
+*Last updated: 2026-04-03 after v2.0 milestone*
