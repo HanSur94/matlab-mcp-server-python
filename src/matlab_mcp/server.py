@@ -382,13 +382,14 @@ def create_server(config: AppConfig) -> FastMCP:
         lifespan=lifespan,
     )
 
-    # Register monitoring routes for SSE transport
-    if config.server.transport == "sse" and config.monitoring.enabled:
+    # Register monitoring routes for HTTP transports (SSE and streamablehttp)
+    if config.server.transport in ("sse", "streamablehttp") and config.monitoring.enabled:
         try:
             from matlab_mcp.monitoring.dashboard import register_monitoring_routes
 
             register_monitoring_routes(mcp, state)
-            logger.info("Monitoring routes registered for SSE transport (/dashboard, /health)")
+            logger.info("Monitoring routes registered for %s transport (/dashboard, /health)",
+                        config.server.transport)
         except Exception as exc:
             logger.warning("Failed to register monitoring routes for SSE: %s", exc)
 
