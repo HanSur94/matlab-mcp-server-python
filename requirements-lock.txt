@@ -14,7 +14,7 @@ cloudpickle==3.1.2
 colorama==0.4.6
 coverage==7.13.4
 cronsim==2.7
-cryptography==46.0.5
+cryptography==46.0.6
 cyclopts==4.10.0
 dnspython==2.8.0
 docstring_parser==0.17.0
