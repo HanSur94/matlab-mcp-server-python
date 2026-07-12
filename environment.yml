@@ -1,3 +1,10 @@
+# DEPRECATED: superseded by the pixi workflow (pixi.toml + committed pixi.lock).
+# This file is kept for one release for backward compatibility and will be
+# removed afterwards. Prefer pixi for new installs:
+#   pixi run start
+#   pixi run install-engine
+# See https://pixi.sh and README.md for the pixi quickstart.
+#
 # Standalone install — works without cloning the repo.
 # Downloads matlab-mcp-python from PyPI.
 #
