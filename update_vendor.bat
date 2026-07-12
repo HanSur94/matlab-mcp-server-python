@@ -47,6 +47,13 @@ for %%v in (310 311 312) do (
     pip download -r "%REQ_FILE%" --platform win_amd64 --python-version %%v --only-binary=:all: -d "%VENDOR_DIR%" --quiet 2>&1
 )
 
+:: Fetch pip/setuptools/wheel themselves -- install.bat bootstraps its own
+:: pip upgrade from vendor/ (--no-index --find-links) on a fully air-gapped
+:: machine, so these three must be present too even though they are not
+:: project dependencies. Universal py3 wheels; no per-Python-version loop needed.
+echo  Fetching pip/setuptools/wheel bootstrap wheels...
+pip download pip setuptools wheel --only-binary=:all: -d "%VENDOR_DIR%" --quiet 2>&1
+
 :: Build the project's own wheel (not in requirements-lock.txt; pip download
 :: only fetches third-party deps, so the project must be wheel-built separately)
 echo  Building project wheel...
