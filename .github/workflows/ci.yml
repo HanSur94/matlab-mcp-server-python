@@ -232,23 +232,48 @@ jobs:
         shell: bash -el {0}
         run: pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
-  conda-test-pypi:
+  # Re-homed off conda onto plain pip: the conda environment.yml path is
+  # deprecated in favor of pixi (see environment.yml deprecation notice), so
+  # the published-wheel smoke no longer needs a conda env to prove itself.
+  pip-test-pypi:
     needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/setup-python@v5
         with:
-          activate-environment: matlab-mcp
-          environment-file: environment.yml
-          auto-activate-base: false
           python-version: "3.12"
+      - run: pip install matlab-mcp-python
       - name: Verify server loads (PyPI install)
-        shell: bash -el {0}
         run: |
           python -c "from matlab_mcp.server import main; print('OK: server')"
           python -c "from matlab_mcp.config import AppConfig; print('OK: config')"
           matlab-mcp --help
+
+  pixi:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.72.2
+          run-install: false
+      - name: Regression guard — matlabengine absent from pixi.toml deps
+        run: |
+          set -euo pipefail
+          # matlabengine is sdist-only and its build raises on any machine
+          # without a matching MATLAB — it must never be a static pixi
+          # dependency (only installed on demand by the install-engine task).
+          if grep -v '^\s*#' pixi.toml | grep -qi matlabengine; then
+            echo "::error::matlabengine must not appear as a live pixi.toml dependency"
+            exit 1
+          fi
+      - name: pixi install (no MATLAB on this runner)
+        run: pixi install
+      - name: Assert server imports engine-free
+        run: |
+          pixi run python -c "from matlab_mcp.server import main; print('OK: pixi engine-free import')"
 
   integration-test:
     needs: lint
@@ -287,8 +312,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t matlab-mcp:test .
+      # Unconditional — validates both compose files resolve without needing
+      # a real license. MLM_LICENSE_FILE only needs to be *set* to satisfy the
+      # docker-compose.yml fail-fast `:?` guard; the placeholder value is
+      # never used to contact a real license server since nothing runs here.
+      - name: Validate compose files (no license required)
+        env:
+          MLM_LICENSE_FILE: "27000@ci-placeholder"
+        run: |
+          docker compose config
+          docker compose -f docker-compose.test.yml config
+      # Gated: building/running the real mathworks/matlab image and starting
+      # an engine pool against it needs a MATLAB license, which generic CI
+      # does not have. Only runs when a MATLAB_LICENSE_AVAILABLE repo
+      # variable is explicitly set (e.g. self-hosted runner with a network
+      # license manager reachable).
+      - name: Build the mathworks/matlab image
+        if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
+        run: docker build -t matlab-mcp:test .
       - name: Smoke-test container health endpoint
+        if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
         run: |
           docker run -d --name mcp-test \
             -e MATLAB_MCP_SERVER_TRANSPORT=sse \
