@@ -395,6 +395,13 @@ def create_server(config: AppConfig) -> FastMCP:
         lifespan=lifespan,
     )
 
+    # F5: per-tool-call timing metrics, additive to the executor's job-level timing
+    if config.monitoring.enabled and state.collector:
+        from matlab_mcp.middleware.timing import TimingMiddleware
+
+        mcp.add_middleware(TimingMiddleware(state.collector))
+        logger.info("TimingMiddleware registered (per-tool-call metrics)")
+
     # Register monitoring routes for HTTP transports (SSE and streamablehttp)
     if config.server.transport in ("sse", "streamablehttp") and config.monitoring.enabled:
         try:
