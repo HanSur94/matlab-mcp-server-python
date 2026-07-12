@@ -17,6 +17,97 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src/ tests/
 
+  drift-guard:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert fastmcp / project version agreement, no stale strings
+        run: |
+          set -euo pipefail
+
+          # Strip comment-only lines before grepping so a stale string
+          # mentioned only in a code comment doesn't count as drift, while a
+          # live reference still trips the guard.
+          nocomments() { grep -v '^\s*#' "$1"; }
+
+          # sed (POSIX BRE) instead of `grep -oP` so this doesn't depend on a
+          # GNU-only PCRE grep being present on the runner.
+          PROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          FASTMCP_SPEC=$(sed -n 's/.*fastmcp>=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' pyproject.toml | head -1)
+
+          echo "pyproject.toml project version: ${PROJECT_VERSION}"
+          echo "pyproject.toml fastmcp floor:   ${FASTMCP_SPEC}"
+
+          test -n "${PROJECT_VERSION}" || { echo "::error::could not extract project version from pyproject.toml"; exit 1; }
+          test -n "${FASTMCP_SPEC}" || { echo "::error::could not extract fastmcp floor from pyproject.toml"; exit 1; }
+
+          # requirements-lock.txt must pin fastmcp to the exact same version
+          # as the pyproject.toml floor.
+          LOCK_FASTMCP=$(sed -n 's/^fastmcp==\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$/\1/p' requirements-lock.txt | head -1)
+          if [ "${LOCK_FASTMCP}" != "${FASTMCP_SPEC}" ]; then
+            echo "::error::requirements-lock.txt fastmcp pin (${LOCK_FASTMCP:-MISSING}) disagrees with pyproject.toml floor (${FASTMCP_SPEC})"
+            exit 1
+          fi
+
+          # CLAUDE.md must reference the current fastmcp version and must not
+          # still describe the pre-migration 2.14.5 pin.
+          if ! nocomments CLAUDE.md | grep -q "${FASTMCP_SPEC}"; then
+            echo "::error::CLAUDE.md does not mention fastmcp ${FASTMCP_SPEC}"
+            exit 1
+          fi
+          if nocomments CLAUDE.md | grep -q "2\.14\.5"; then
+            echo "::error::CLAUDE.md still references the stale fastmcp 2.14.5"
+            exit 1
+          fi
+
+          # install.bat's banner must match the current project version.
+          if ! nocomments install.bat | grep -q "v${PROJECT_VERSION}"; then
+            echo "::error::install.bat banner does not match pyproject version v${PROJECT_VERSION}"
+            exit 1
+          fi
+
+          # Dockerfile installs fastmcp transitively via pyproject (single
+          # source of truth) — it must not carry its own stale hardcoded pin.
+          if nocomments Dockerfile | grep -qE "fastmcp==(2\.|3\.[0-3]\.)"; then
+            echo "::error::Dockerfile pins a stale fastmcp version"
+            exit 1
+          fi
+          if nocomments Dockerfile | grep -q "2\.14\.5"; then
+            echo "::error::Dockerfile still references the stale fastmcp 2.14.5"
+            exit 1
+          fi
+
+          # None of the four version-bearing files may reference a
+          # pre-3.4.4-migration project version string.
+          for f in pyproject.toml Dockerfile CLAUDE.md install.bat; do
+            if nocomments "$f" | grep -qE "v1\.3\.0|v1\.4\.[0-9]+"; then
+              echo "::error::$f references a stale pre-migration project version"
+              exit 1
+            fi
+          done
+
+          echo "Version drift guard passed: project=${PROJECT_VERSION} fastmcp=${FASTMCP_SPEC}"
+
+  # Windows-targeted: vendor/ is an air-gapped win_amd64 wheelhouse (that's the
+  # supported offline path — see CONTEXT.md decision 3), so this must run on a
+  # Windows runner with a matching CPython to actually resolve the wheels.
+  offline-smoke:
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Clean-venv air-gapped install from vendor/ (win_amd64 wheelhouse)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m venv offline-venv
+          .\offline-venv\Scripts\pip.exe install --no-index --find-links vendor matlab-mcp-python
+          .\offline-venv\Scripts\python.exe -c "from matlab_mcp.server import main; print('OK: offline import from vendored wheelhouse')"
+
   test:
     needs: lint
     runs-on: ubuntu-latest
