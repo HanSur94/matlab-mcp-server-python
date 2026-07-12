@@ -10,7 +10,7 @@ title MATLAB MCP Server Installer
 
 echo.
 echo  ============================================================
-echo   MATLAB MCP Server - Windows Installer v1.3.0
+echo   MATLAB MCP Server - Windows Installer v1.5.0
 echo   (no administrator rights required)
 echo  ============================================================
 echo.
@@ -22,12 +22,15 @@ set "INSTALL_DIR=%~dp0"
 
 :: Quick writability test — try to create and delete a temp file
 set "_PROBE=%INSTALL_DIR%_install_probe.tmp"
+set "INSTALL_DIR_FALLBACK="
 echo probe > "%_PROBE%" 2>nul
 if not exist "%_PROBE%" (
     echo  [INFO] Script directory is not writable: %INSTALL_DIR%
     echo         Falling back to %%LOCALAPPDATA%%\matlab-mcp ...
     set "INSTALL_DIR=%LOCALAPPDATA%\matlab-mcp\"
+    set "INSTALL_DIR_FALLBACK=1"
     if not exist "!INSTALL_DIR!" mkdir "!INSTALL_DIR!"
+    echo  [INFO] Resolved install directory: !INSTALL_DIR!
 ) else (
     del "%_PROBE%" >nul 2>&1
 )
@@ -195,13 +198,15 @@ if exist "%VENV_DIR%\Scripts\activate.bat" (
 :: Activate
 call "%VENV_DIR%\Scripts\activate.bat"
 echo  [OK] Virtual environment ready at %VENV_DIR%
+if defined INSTALL_DIR_FALLBACK (
+    echo  [INFO] Resolved virtual environment directory: %VENV_DIR%
+)
 echo.
 
 :: ----------------------------------------------------------------------------
 :: 4b. Detect bundled vendor/ directory for fully offline installation.
 ::     All dependencies (wheels) are shipped in vendor/ — no internet needed.
 :: ----------------------------------------------------------------------------
-set "PIP_TRUST=--trusted-host pypi.org --trusted-host files.pythonhosted.org"
 set "VENDOR_DIR=%~dp0vendor"
 set "OFFLINE="
 
@@ -219,7 +224,7 @@ echo  Upgrading pip, setuptools, and wheel...
 if defined OFFLINE (
     python -m pip install --upgrade pip setuptools wheel --no-index --find-links "%VENDOR_DIR%" --quiet 2>&1
 ) else (
-    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
+    python -m pip install --upgrade pip setuptools wheel --quiet 2>&1
 )
 if %errorlevel% neq 0 (
     echo  [WARNING] Could not upgrade pip/setuptools/wheel. Continuing with defaults.
@@ -291,10 +296,10 @@ if defined OFFLINE (
 ) else (
     if exist "%SOURCE_DIR%pyproject.toml" (
         echo  Installing from local source...
-        pip install "%SOURCE_DIR%." %PIP_TRUST% --no-cache-dir --force-reinstall --quiet
+        pip install "%SOURCE_DIR%." --no-cache-dir --force-reinstall --quiet
     ) else (
         echo  Installing from PyPI...
-        pip install matlab-mcp-python %PIP_TRUST% --quiet
+        pip install matlab-mcp-python --quiet
     )
 )
 
