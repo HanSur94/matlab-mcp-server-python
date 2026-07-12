@@ -41,17 +41,17 @@ Plans:
 
 **Requirements**: Approved design spec `2026-07-12-friendly-win10-install-design.md` (in session scratchpad); 4 locked decisions — PyPI matlabengine + local-build fallback, full mathworks/matlab Docker, keep offline, adopt-now FastMCP features (F5/F6/F12).
 **Depends on:** Phase 7 (complete)
-**Plans:** 10 plans in 3 waves
+**Plans:** 10/10 plans complete
 
 Plans:
 
-- [ ] 08-01-PLAN.md — WS1: shared MATLAB engine detection/install script (+ mocked-registry tests)
-- [ ] 08-02-PLAN.md — WS4: bump fastmcp to 3.4.4 + drop plotly runtime dep (pyproject/CLAUDE.md)
-- [ ] 08-03-PLAN.md — WS5-F5: TimingMiddleware (per-tool-call metrics) + create_server registration
-- [ ] 08-04-PLAN.md — WS1: slim install.bat to call the shared engine script (drop junction/PowerShell)
-- [ ] 08-05-PLAN.md — WS2: pixi.toml + committed pixi.lock + tasks + README quickstart
-- [ ] 08-06-PLAN.md — WS5-F6: ExecuteResult/CheckResult structured output (schema-additive, wire-compat)
-- [ ] 08-07-PLAN.md — WS3: rewrite Dockerfile/compose (mathworks/matlab + network license, streamablehttp)
-- [ ] 08-08-PLAN.md — WS4: rebuild vendor to fastmcp 3.4.x closure + update_vendor fixes (offline)
-- [ ] 08-09-PLAN.md — WS6: deprecate conda envs toward pixi + reconcile wiki version strings
-- [ ] 08-10-PLAN.md — WS4/6: CI drift guard, offline smoke, pixi job, license-gated docker build
+- [x] 08-01-PLAN.md — WS1: shared MATLAB engine detection/install script (+ mocked-registry tests)
+- [x] 08-02-PLAN.md — WS4: bump fastmcp to 3.4.4 + drop plotly runtime dep (pyproject/CLAUDE.md)
+- [x] 08-03-PLAN.md — WS5-F5: TimingMiddleware (per-tool-call metrics) + create_server registration
+- [x] 08-04-PLAN.md — WS1: slim install.bat to call the shared engine script (drop junction/PowerShell)
+- [x] 08-05-PLAN.md — WS2: pixi.toml + committed pixi.lock + tasks + README quickstart
+- [x] 08-06-PLAN.md — WS5-F6: ExecuteResult/CheckResult structured output (schema-additive, wire-compat)
+- [x] 08-07-PLAN.md — WS3: rewrite Dockerfile/compose (mathworks/matlab + network license, streamablehttp)
+- [x] 08-08-PLAN.md — WS4: rebuild vendor to fastmcp 3.4.x closure + update_vendor fixes (offline)
+- [x] 08-09-PLAN.md — WS6: deprecate conda envs toward pixi + reconcile wiki version strings
+- [x] 08-10-PLAN.md — WS4/6: CI drift guard, offline smoke, pixi job, license-gated docker build

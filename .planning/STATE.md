@@ -69,6 +69,10 @@ Progress: [███████░░░] 67%
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 8 added (2026-07-12): Friendly Win10 install (Pixi + Docker) + FastMCP 3.4.4. Design spec: phases/08-.../CONTEXT.md. Locked decisions: PyPI matlabengine (auto-detected) primary + local-build offline fallback; real mathworks/matlab Docker + network license; keep air-gapped offline; adopt FastMCP 3.4.4 features F5/F6/F12. Fixes the vendor-ships-2.14.5/v1.4.1 drift left when Phase 1 upgraded the code to FastMCP 3.x.
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
