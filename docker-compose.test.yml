@@ -3,13 +3,21 @@
 # Simulates two-machine scenario: PC A (client) connecting to PC B (server)
 # over a Docker network with bearer auth.
 #
+# Builds the same mathworks/matlab image as docker-compose.yml (see Dockerfile),
+# but runs the server in --inspect mode (engine-free) since generic CI has no
+# MATLAB license and cannot start real engines. The real image build/run is
+# gated behind a MATLAB-license-available CI flag — see 08-VALIDATION.md.
+#
 # Usage:
 #   docker compose -f docker-compose.test.yml up --build --exit-code-from client
 #   docker compose -f docker-compose.test.yml down -v
 
 services:
   server:
-    build: .
+    build:
+      context: .
+      args:
+        MATLAB_RELEASE: r2025a
     command: ["--inspect", "--transport", "streamablehttp"]
     environment:
       - MATLAB_MCP_AUTH_TOKEN=test-token-for-ci
@@ -18,7 +26,7 @@ services:
     networks:
       - mcp-test-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('localhost',8765),timeout=2); s.close()"]
+      test: ["CMD", "python3", "-c", "import socket; s=socket.create_connection(('localhost',8765),timeout=2); s.close()"]
       interval: 2s
       timeout: 3s
       retries: 20
@@ -29,7 +37,7 @@ services:
     entrypoint:
       - "sh"
       - "-c"
-      - "pip install --quiet mcp httpx && python /app/tests/remote_client.py"
+      - "pip3 install --quiet mcp httpx && python3 /app/tests/remote_client.py"
     volumes:
       - ./tests/remote_client.py:/app/tests/remote_client.py:ro
     environment:
