@@ -29,7 +29,7 @@ A Python-based MCP server that lets AI coding agents (Claude Code, Codex CLI, et
 - Lockfile: `requirements-lock.txt` (pinned versions)
 - Build backend: hatchling (via `[build-system]` in `pyproject.toml`)
 ## Frameworks
-- FastMCP 2.14.5 - MCP server framework (`fastmcp>=2.0.0,<3.0.0` in dependencies)
+- FastMCP 3.4.4 - MCP server framework (`fastmcp>=3.4.4,<4.0.0` in dependencies)
 - Starlette 0.52.1 - Web framework for HTTP monitoring dashboard (`src/matlab_mcp/monitoring/dashboard.py`)
 - Uvicorn 0.42.0 - ASGI server for HTTP transport and dashboard
 - Model Context Protocol (MCP 1.26.0) - Protocol implementation
@@ -47,7 +47,7 @@ A Python-based MCP server that lets AI coding agents (Claude Code, Codex CLI, et
 - pip-audit 2.6.0+ - Security vulnerability scanning
 - build 1.0.0+ - Python package builder
 ## Key Dependencies
-- `fastmcp>=2.0.0,<3.0.0` - MCP server framework enabling tool registration and protocol handling
+- `fastmcp>=3.4.4,<4.0.0` - MCP server framework enabling tool registration and protocol handling
 - `pydantic>=2.0.0` - Configuration validation with type safety (used extensively in `src/matlab_mcp/config.py`)
 - `matlab.engine` - Actual MATLAB execution bridge (external, installed from MATLAB installation)
 - `pyyaml>=6.0` - Configuration file loading (`load_config` in `src/matlab_mcp/config.py`)
