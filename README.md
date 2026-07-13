@@ -107,6 +107,38 @@ pip install .
 
 ### Install the server
 
+**Pixi (recommended, no admin needed):**
+
+[Pixi](https://pixi.sh) installs Python + all dependencies into an isolated, per-project
+environment — no venv wrangling, no admin rights, works the same on Windows/macOS/Linux.
+
+```powershell
+# Install pixi (Windows PowerShell)
+irm -useb https://pixi.sh/install.ps1 | iex
+# ...or via winget:
+winget install prefix-dev.pixi
+```
+
+```bash
+git clone https://github.com/HanSur94/matlab-mcp-server-python.git
+cd matlab-mcp-server-python
+
+# 1. Engine-free start — verifies the server comes up (no MATLAB required yet)
+pixi run start
+
+# 2. Detect your local MATLAB install and pip-install the matching matlabengine
+pixi run install-engine
+
+# 3. Start again — MATLAB code now actually executes
+pixi run start
+```
+
+`pixi.lock` is committed, so `pixi run ...` always reproduces the exact resolved
+environment (Python 3.10–3.12, `fastmcp==3.4.4`) on any machine — no separate `pip install`
+step needed. `matlabengine` is deliberately never a static dependency (its sdist build reads
+the local MATLAB installation and fails on machines without a matching release); the
+`install-engine` task installs it on demand, matched to your detected MATLAB release.
+
 **Windows (one-click, no admin needed):**
 
 ```cmd
@@ -135,9 +167,17 @@ pip install -e ".[dev]"
 # Single user (stdio) — simplest setup
 matlab-mcp
 
-# Multi-user (SSE) — shared server
+# Multi-user, HTTP — preferred transport (FastMCP 3.4.4 streamable-http)
+matlab-mcp --transport streamablehttp
+
+# Multi-user, SSE — legacy alias, kept for existing SSE clients
 matlab-mcp --transport sse
 ```
+
+With Pixi, the equivalent tasks are `pixi run start` (stdio), `pixi run http`
+(`streamablehttp`, preferred), and `pixi run sse` (legacy alias). `streamablehttp` is the
+transport to reach for on new setups; `sse` continues to work unchanged so existing
+integrations are never broken.
 
 ### Connect to Claude Desktop
 

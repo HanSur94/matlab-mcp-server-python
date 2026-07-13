@@ -10,7 +10,7 @@ title MATLAB MCP Server Installer
 
 echo.
 echo  ============================================================
-echo   MATLAB MCP Server - Windows Installer v1.3.0
+echo   MATLAB MCP Server - Windows Installer v1.5.0
 echo   (no administrator rights required)
 echo  ============================================================
 echo.
@@ -22,12 +22,15 @@ set "INSTALL_DIR=%~dp0"
 
 :: Quick writability test — try to create and delete a temp file
 set "_PROBE=%INSTALL_DIR%_install_probe.tmp"
+set "INSTALL_DIR_FALLBACK="
 echo probe > "%_PROBE%" 2>nul
 if not exist "%_PROBE%" (
     echo  [INFO] Script directory is not writable: %INSTALL_DIR%
     echo         Falling back to %%LOCALAPPDATA%%\matlab-mcp ...
     set "INSTALL_DIR=%LOCALAPPDATA%\matlab-mcp\"
+    set "INSTALL_DIR_FALLBACK=1"
     if not exist "!INSTALL_DIR!" mkdir "!INSTALL_DIR!"
+    echo  [INFO] Resolved install directory: !INSTALL_DIR!
 ) else (
     del "%_PROBE%" >nul 2>&1
 )
@@ -195,13 +198,15 @@ if exist "%VENV_DIR%\Scripts\activate.bat" (
 :: Activate
 call "%VENV_DIR%\Scripts\activate.bat"
 echo  [OK] Virtual environment ready at %VENV_DIR%
+if defined INSTALL_DIR_FALLBACK (
+    echo  [INFO] Resolved virtual environment directory: %VENV_DIR%
+)
 echo.
 
 :: ----------------------------------------------------------------------------
 :: 4b. Detect bundled vendor/ directory for fully offline installation.
 ::     All dependencies (wheels) are shipped in vendor/ — no internet needed.
 :: ----------------------------------------------------------------------------
-set "PIP_TRUST=--trusted-host pypi.org --trusted-host files.pythonhosted.org"
 set "VENDOR_DIR=%~dp0vendor"
 set "OFFLINE="
 
@@ -219,7 +224,7 @@ echo  Upgrading pip, setuptools, and wheel...
 if defined OFFLINE (
     python -m pip install --upgrade pip setuptools wheel --no-index --find-links "%VENDOR_DIR%" --quiet 2>&1
 ) else (
-    python -m pip install --upgrade pip setuptools wheel %PIP_TRUST% --quiet 2>&1
+    python -m pip install --upgrade pip setuptools wheel --quiet 2>&1
 )
 if %errorlevel% neq 0 (
     echo  [WARNING] Could not upgrade pip/setuptools/wheel. Continuing with defaults.
@@ -229,9 +234,12 @@ if %errorlevel% neq 0 (
 
 :: ----------------------------------------------------------------------------
 :: 5. Install MATLAB Engine API for Python
-::    Copies source to %TEMP% first because the MATLAB directory under
-::    C:\Program Files is read-only (pip needs to create build/ there).
-::    Uses pip 26+ which handles the build in a temp directory.
+::    Delegates to scripts\install_matlab_engine.py — the single shared
+::    source of truth (also used by the pixi install-engine task). It
+::    detects the installed MATLAB release and pip-installs the matching
+::    matlabengine build. Offline/air-gapped installs set MATLAB_MCP_VENDOR
+::    so the script falls back to building from the local MATLAB tree
+::    instead of PyPI.
 :: ----------------------------------------------------------------------------
 echo  [4/6] Installing MATLAB Engine API for Python...
 
@@ -245,57 +253,34 @@ python -c "import matlab.engine" >nul 2>&1
 if %errorlevel% equ 0 (
     echo  MATLAB Engine API already installed. Skipping.
 ) else (
-    REM Recreate MATLAB dir structure in TEMP with junctions back to real dirs.
-    REM setup.py walks up from extern\engines\python to validate the install.
-    set "ENGINE_TEMP=%TEMP%\matlab_engine_root"
-    if exist "!ENGINE_TEMP!" rd /s /q "!ENGINE_TEMP!" >nul 2>nul
-
-    echo  Preparing MATLAB Engine build directory...
-    mkdir "!ENGINE_TEMP!\extern\engines" 2>nul
-
-    REM Copy only the Python engine source (the part we need to build)
-    robocopy "!ENGINE_API_DIR!" "!ENGINE_TEMP!\extern\engines\python" /E /NJH /NJS /NFL /NDL /NC /NS /NP >nul 2>nul
-    set "_RC=!errorlevel!"
-    if !_RC! geq 8 (
-        echo  [WARNING] Could not copy MATLAB Engine source files.
-        echo            Continuing with MCP server installation...
-        goto :install_mcp
+    set "MATLABROOT=!MATLAB_ROOT!"
+    if defined OFFLINE (
+        echo  Installing MATLAB Engine API from the local MATLAB tree (offline^)...
+        set "MATLAB_MCP_VENDOR=%VENDOR_DIR%"
+    ) else (
+        echo  Detecting installed MATLAB release and installing the matching matlabengine...
     )
-
-    REM Create directory junctions (mklink /J, no admin needed) for validation
-    mklink /J "!ENGINE_TEMP!\bin" "!MATLAB_ROOT!\bin" >nul 2>nul
-    mklink /J "!ENGINE_TEMP!\extern\include" "!MATLAB_ROOT!\extern\include" >nul 2>nul
-    mklink /J "!ENGINE_TEMP!\extern\lib" "!MATLAB_ROOT!\extern\lib" >nul 2>nul
-    mklink /J "!ENGINE_TEMP!\toolbox" "!MATLAB_ROOT!\toolbox" >nul 2>nul
-
-    echo  Building and installing MATLAB Engine API...
-    set "MATLABROOT=!ENGINE_TEMP!"
-    pip install "!ENGINE_TEMP!\extern\engines\python" --no-build-isolation --quiet 2>&1
+    REM Export the release token we already detected so the script uses it
+    REM directly instead of re-detecting. Skip the "custom" sentinel so the
+    REM script self-detects when the user supplied a path, not a release.
+    if /i not "!MATLAB_VER!"=="custom" set "MATLAB_RELEASE=!MATLAB_VER!"
+    python "%~dp0scripts\install_matlab_engine.py"
     if !errorlevel! neq 0 (
         echo.
         echo  [WARNING] MATLAB Engine API installation failed.
         echo            This can happen if your MATLAB version is incompatible
-        echo            with Python %PYTHON_VERSION%.
+        echo            with Python %PYTHON_VERSION%, or if no supported
+        echo            MATLAB release could be detected.
         echo.
         echo            To install manually later, run:
         echo              call "%VENV_DIR%\Scripts\activate.bat"
-        echo              pip install "!ENGINE_API_DIR!"
+        echo              python "%~dp0scripts\install_matlab_engine.py"
         echo.
         echo  Continuing with MCP server installation...
     ) else (
         echo  [OK] MATLAB Engine API installed.
-        REM Fix _arch.txt and all other files — setup.py wrote temp paths.
-        REM Replace the temp root with the real MATLAB root in all installed files.
-        echo  Fixing MATLAB engine paths...
-        powershell -Command "Get-ChildItem -Path '!VENV_DIR!\Lib\site-packages\matlab' -Recurse -File | ForEach-Object { $c = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue; if ($c -and $c.Contains('!ENGINE_TEMP!')) { $c.Replace('!ENGINE_TEMP!', '!MATLAB_ROOT!') | Set-Content $_.FullName -NoNewline; Write-Host ('  Fixed: ' + $_.Name) } }"
-        echo  [OK] MATLAB engine paths fixed to !MATLAB_ROOT!
     )
-    REM Clean up — remove junctions first (rd /s /q follows junctions!)
-    if exist "!ENGINE_TEMP!\bin" rmdir "!ENGINE_TEMP!\bin" >nul 2>nul
-    if exist "!ENGINE_TEMP!\extern\include" rmdir "!ENGINE_TEMP!\extern\include" >nul 2>nul
-    if exist "!ENGINE_TEMP!\extern\lib" rmdir "!ENGINE_TEMP!\extern\lib" >nul 2>nul
-    if exist "!ENGINE_TEMP!\toolbox" rmdir "!ENGINE_TEMP!\toolbox" >nul 2>nul
-    rd /s /q "!ENGINE_TEMP!" >nul 2>nul
+    set "MATLAB_MCP_VENDOR="
 )
 echo.
 
@@ -315,10 +300,10 @@ if defined OFFLINE (
 ) else (
     if exist "%SOURCE_DIR%pyproject.toml" (
         echo  Installing from local source...
-        pip install "%SOURCE_DIR%." %PIP_TRUST% --no-cache-dir --force-reinstall --quiet
+        pip install "%SOURCE_DIR%." --no-cache-dir --force-reinstall --quiet
     ) else (
         echo  Installing from PyPI...
-        pip install matlab-mcp-python %PIP_TRUST% --quiet
+        pip install matlab-mcp-python --quiet
     )
 )
 

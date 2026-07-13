@@ -1,0 +1,66 @@
+[workspace]
+name = "matlab-mcp-python"
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.10,<3.13"
+# pip is required in the environment so the `install-engine` task can run
+# `python -m pip install matlabengine==<release>` — pixi/conda envs do not
+# ship pip by default, and without it `pixi run install-engine` fails with
+# "No module named pip" even when MATLAB is present.
+pip = "*"
+
+[pypi-dependencies]
+# matlab-mcp-python installed editable from the repo root; "monitoring" extra
+# pulls in psutil + uvicorn for the dashboard/health endpoints.
+matlab-mcp-python = { path = ".", editable = true, extras = ["monitoring"] }
+# Hard-pinned to mirror pyproject.toml's `fastmcp>=3.4.4,<4.0.0` floor.
+fastmcp = "==3.4.4"
+# NOTE: `matlabengine` is deliberately NOT listed here (or in [dependencies]).
+# It is sdist-only on PyPI and its build step reads the local MATLAB
+# installation, raising if no matching MATLAB is present. A static entry
+# would break `pixi install` on every machine without that exact MATLAB
+# release. It is installed on demand by the `install-engine` task below,
+# which delegates to scripts/install_matlab_engine.py (single source of
+# truth, shared with install.bat).
+
+[tasks]
+# Engine-free start — safe to run before MATLAB / matlabengine is installed;
+# the server comes up and reports itself, tools just won't execute MATLAB
+# code until `install-engine` has been run.
+start = "matlab-mcp"
+# Inspection mode: start without requiring MATLAB at all (no engine pool).
+inspect = "matlab-mcp --inspect"
+# Preferred HTTP transport (FastMCP 3.4.4 streamable-http, F12).
+http = "matlab-mcp --transport streamablehttp"
+# Legacy SSE alias — kept so existing SSE clients keep working.
+sse = "matlab-mcp --transport sse"
+# Open the monitoring dashboard in the default browser.
+dashboard = "python -c \"import webbrowser; webbrowser.open('http://localhost:8766/dashboard')\""
+# Print a bearer token + env var snippet for SSE/streamablehttp auth, then exit.
+generate-token = "matlab-mcp --generate-token"
+# Detect the local MATLAB release and pip-install the matching matlabengine.
+install-engine = "python scripts/install_matlab_engine.py"
+# Offline/air-gapped variant: forces the local-tree install from MATLABROOT
+# instead of hitting PyPI (see scripts/install_matlab_engine.py).
+[tasks.install-engine-offline]
+cmd = "python scripts/install_matlab_engine.py"
+env = { MATLAB_MCP_VENDOR = "vendor" }
+
+[feature.dev.pypi-dependencies]
+pytest = ">=7.0"
+pytest-asyncio = ">=0.21"
+pytest-cov = ">=4.0"
+ruff = ">=0.1.0"
+build = ">=1.0.0"
+pip-audit = ">=2.6.0"
+
+[feature.dev.tasks]
+test = "pytest tests/ -v"
+lint = "ruff check src/ tests/"
+audit = "pip-audit"
+
+[environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }

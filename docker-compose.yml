@@ -1,21 +1,25 @@
 services:
   matlab-mcp:
-    build: .
+    build:
+      context: .
+      args:
+        MATLAB_RELEASE: r2025a
     ports:
       - "8765:8765"
-      - "8766:8766"
+    shm_size: "512m"  # MATLAB needs shared memory
+    environment:
+      # REQUIRED: network license manager address (port@host). A licensed
+      # engine cannot run in this container without one — the fail-fast
+      # `:?` guard means compose refuses to start rather than silently
+      # defaulting. Never echo this value.
+      - MLM_LICENSE_FILE=${MLM_LICENSE_FILE:?set MLM_LICENSE_FILE=port@host}
+      - MATLAB_MCP_SERVER_TRANSPORT=streamablehttp
+      - MATLAB_MCP_POOL_MAX_ENGINES=2  # each engine = 1 license seat
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ./custom_tools.yaml:/app/custom_tools.yaml:ro
-      # Mount your MATLAB installation (adjust path for your system):
-      # - /usr/local/MATLAB/R2024b:/opt/matlab:ro          # Linux
-      # - /Applications/MATLAB_R2024b.app:/opt/matlab:ro    # macOS
       - results:/app/results
       - monitoring_data:/app/monitoring
-    environment:
-      - MATLAB_MCP_SERVER_TRANSPORT=sse
-      - MATLAB_MCP_POOL_MAX_ENGINES=4
-      # - MATLAB_MCP_POOL_MATLAB_ROOT=/opt/matlab  # Uncomment when mounting MATLAB
 
 volumes:
   results:

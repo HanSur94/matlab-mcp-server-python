@@ -12,10 +12,126 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from pydantic import BaseModel
+
 from matlab_mcp.hitl.gate import request_execute_approval
 from matlab_mcp.security.validator import BlockedFunctionError
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# F6 structured output models (schema-additive)
+# ---------------------------------------------------------------------------
+#
+# ``execute_code_impl``/``check_code_impl`` keep returning plain dicts (their
+# contract is unchanged — see tests in ``tests/test_tools.py``). These models
+# are a *typed view* built by the ``execute_code``/``check_code`` tool
+# wrappers in ``server.py`` purely so FastMCP can emit an output schema and
+# ``structuredContent`` alongside the existing wire shape.
+#
+# Wire-compat strategy: every field the underlying dicts may or may not carry
+# is declared ``Optional`` with a default of ``None``. ``to_wire_dict()`` dumps
+# with ``exclude_none=True`` so only the keys actually present on a given
+# code path are serialized — reproducing the exact pre-change dict shape.
+# Nested dicts (``error``) are typed as plain ``dict`` (not a nested Pydantic
+# model) so ``exclude_none`` only prunes *top-level* None fields and does not
+# recurse into — and strip legitimate ``None``-valued keys from — the nested
+# error dict (e.g. ``error["matlab_id"]`` is `None` on validation errors but
+# the key itself must remain present on the wire).
+
+
+class ExecuteResult(BaseModel):
+    """Typed, schema-additive view of an ``execute_code`` result dict.
+
+    Parameters
+    ----------
+    status:
+        Execution status: ``"completed"``, ``"pending"``, ``"failed"``, or
+        ``"denied"`` (HITL rejection).
+    job_id:
+        Job identifier. Absent when a request is rejected before a job is
+        created (e.g. a blocked-function security violation).
+    message:
+        Present only on the HITL ``"denied"`` path.
+    text:
+        Captured stdout/stderr text. Present on ``"completed"``.
+    variables:
+        Workspace variables snapshot. Present on ``"completed"``.
+    figures:
+        Plotly-converted figures. Present on ``"completed"``.
+    files:
+        Files written to the session temp dir. Present on ``"completed"``.
+    warnings:
+        Execution warnings. Present on ``"completed"``.
+    errors:
+        Execution errors (non-fatal). Present on ``"completed"``.
+    error:
+        Structured error dict (``type``, ``message``, ``matlab_id``,
+        ``stack_trace``). Present on ``"failed"``.
+    """
+
+    status: str
+    job_id: Optional[str] = None
+    message: Optional[str] = None
+    text: Optional[str] = None
+    variables: Optional[dict] = None
+    figures: Optional[list] = None
+    files: Optional[list] = None
+    warnings: Optional[list] = None
+    errors: Optional[list] = None
+    error: Optional[dict] = None
+
+    def to_wire_dict(self) -> dict:
+        """Serialize back to the exact pre-change dict shape.
+
+        Returns
+        -------
+        dict
+            ``model_dump(exclude_none=True)`` — only keys that were actually
+            populated are emitted, matching the legacy dict wire shape.
+        """
+        return self.model_dump(exclude_none=True)
+
+
+class CheckResult(BaseModel):
+    """Typed, schema-additive view of a ``check_code`` result dict.
+
+    Parameters
+    ----------
+    status:
+        Check status: ``"completed"``, ``"pending"``, or ``"failed"``
+        (checkcode is executed via the same executor as ``execute_code``, so
+        the non-completed statuses can pass through unchanged).
+    issues:
+        Parsed ``mcp_checkcode`` JSON issues list. Present when the raw
+        output parsed as JSON.
+    raw:
+        Raw checkcode text output. Present as a fallback when JSON parsing
+        of the checkcode output failed.
+    job_id:
+        Job identifier, present on the pass-through ``"pending"``/``"failed"``
+        paths.
+    error:
+        Structured error dict, present on the pass-through ``"failed"`` path.
+    """
+
+    status: str
+    issues: Optional[Any] = None
+    raw: Optional[str] = None
+    job_id: Optional[str] = None
+    error: Optional[dict] = None
+
+    def to_wire_dict(self) -> dict:
+        """Serialize back to the exact pre-change dict shape.
+
+        Returns
+        -------
+        dict
+            ``model_dump(exclude_none=True)`` — only keys that were actually
+            populated are emitted, matching the legacy dict wire shape.
+        """
+        return self.model_dump(exclude_none=True)
 
 
 async def execute_code_impl(

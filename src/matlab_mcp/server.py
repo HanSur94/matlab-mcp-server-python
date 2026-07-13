@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
+from fastmcp.tools.tool import ToolResult
 
 from matlab_mcp.config import AppConfig, load_config
 from matlab_mcp.jobs.executor import JobExecutor
@@ -26,6 +27,8 @@ from matlab_mcp.security.validator import SecurityValidator
 from matlab_mcp.session.manager import SessionManager
 from matlab_mcp.tools.admin import get_pool_status_impl
 from matlab_mcp.tools.core import (
+    CheckResult,
+    ExecuteResult,
     check_code_impl,
     execute_code_impl,
     get_workspace_impl,
@@ -395,6 +398,13 @@ def create_server(config: AppConfig) -> FastMCP:
         lifespan=lifespan,
     )
 
+    # F5: per-tool-call timing metrics, additive to the executor's job-level timing
+    if config.monitoring.enabled and state.collector:
+        from matlab_mcp.middleware.timing import TimingMiddleware
+
+        mcp.add_middleware(TimingMiddleware(state.collector))
+        logger.info("TimingMiddleware registered (per-tool-call metrics)")
+
     # Register monitoring routes for HTTP transports (SSE and streamablehttp)
     if config.server.transport in ("sse", "streamablehttp") and config.monitoring.enabled:
         try:
@@ -411,11 +421,20 @@ def create_server(config: AppConfig) -> FastMCP:
     # ------------------------------------------------------------------
 
     @mcp.tool
-    async def execute_code(ctx: Context, code: str) -> dict:
+    async def execute_code(ctx: Context, code: str) -> ExecuteResult:
         """Execute MATLAB code.
 
         Runs the given MATLAB code string in the session's engine.
         Returns a result dict with status, job_id, output, variables, etc.
+
+        Note: the ``ExecuteResult`` return annotation drives FastMCP's F6
+        output-schema generation. At runtime this returns a plain dict
+        matching that schema, or — on MATLAB execution errors — a
+        ``ToolResult(is_error=True)``. FastMCP passes ``ToolResult``
+        instances through untouched regardless of the declared return type
+        (see ``fastmcp.tools.base.Tool.convert_result``); annotating the
+        return type as a bare union with ``ToolResult`` breaks schema
+        generation entirely, so the annotation stays ``ExecuteResult`` only.
         """
         logger.info("Tool call: execute_code  session=%s  code=%s",
                      state._get_session_id(ctx)[:8], repr(code[:120]))
@@ -433,23 +452,41 @@ def create_server(config: AppConfig) -> FastMCP:
         )
         logger.info("Tool result: execute_code  status=%s  job=%s",
                      result.get("status"), result.get("job_id", "")[:8])
-        return result
+        # F6: build a typed view purely to prove/normalize the wire shape;
+        # the value returned to FastMCP is still the exact legacy dict
+        # (schema-additive — see tools/core.py ExecuteResult docstring).
+        wire = ExecuteResult(**result).to_wire_dict()
+        if wire.get("status") == "failed":
+            error = wire.get("error") or {}
+            summary = f"MATLAB execution failed: {error.get('message', 'unknown error')}"
+            return ToolResult(content=summary, structured_content=wire, is_error=True)
+        return wire
 
     @mcp.tool
-    async def check_code(ctx: Context, code: str) -> dict:
+    async def check_code(ctx: Context, code: str) -> CheckResult:
         """Lint MATLAB code using checkcode/mlint.
 
         Writes the code to a temporary file and runs mcp_checkcode() on it,
         returning a list of issues (line, column, message, severity).
+
+        Note: see ``execute_code`` above for why the return annotation is
+        ``CheckResult`` (not a union with ``ToolResult``).
         """
         session_id = state._get_session_id(ctx)
         temp_dir = state._get_temp_dir(session_id)
-        return await check_code_impl(
+        result = await check_code_impl(
             code=code,
             session_id=session_id,
             executor=state.executor,
             temp_dir=temp_dir,
         )
+        # F6: same schema-additive strategy as execute_code above.
+        wire = CheckResult(**result).to_wire_dict()
+        if wire.get("status") == "failed":
+            error = wire.get("error") or {}
+            summary = f"check_code failed: {error.get('message', 'unknown error')}"
+            return ToolResult(content=summary, structured_content=wire, is_error=True)
+        return wire
 
     @mcp.tool
     async def get_workspace(ctx: Context) -> dict:

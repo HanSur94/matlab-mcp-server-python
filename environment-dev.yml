@@ -1,3 +1,11 @@
+# DEPRECATED: superseded by the pixi workflow (pixi.toml + committed pixi.lock).
+# This file is kept for one release for backward compatibility and will be
+# removed afterwards. Prefer pixi for dev installs:
+#   pixi run start
+#   pixi run install-engine
+#   pixi run -e dev test
+# See https://pixi.sh and README.md for the pixi quickstart.
+#
 # Developer install — requires repo clone (installs from local source).
 # Includes dev dependencies (pytest, ruff, etc).
 #

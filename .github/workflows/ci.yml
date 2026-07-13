@@ -17,6 +17,97 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src/ tests/
 
+  drift-guard:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert fastmcp / project version agreement, no stale strings
+        run: |
+          set -euo pipefail
+
+          # Strip comment-only lines before grepping so a stale string
+          # mentioned only in a code comment doesn't count as drift, while a
+          # live reference still trips the guard.
+          nocomments() { grep -v '^\s*#' "$1"; }
+
+          # sed (POSIX BRE) instead of `grep -oP` so this doesn't depend on a
+          # GNU-only PCRE grep being present on the runner.
+          PROJECT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          FASTMCP_SPEC=$(sed -n 's/.*fastmcp>=\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' pyproject.toml | head -1)
+
+          echo "pyproject.toml project version: ${PROJECT_VERSION}"
+          echo "pyproject.toml fastmcp floor:   ${FASTMCP_SPEC}"
+
+          test -n "${PROJECT_VERSION}" || { echo "::error::could not extract project version from pyproject.toml"; exit 1; }
+          test -n "${FASTMCP_SPEC}" || { echo "::error::could not extract fastmcp floor from pyproject.toml"; exit 1; }
+
+          # requirements-lock.txt must pin fastmcp to the exact same version
+          # as the pyproject.toml floor.
+          LOCK_FASTMCP=$(sed -n 's/^fastmcp==\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$/\1/p' requirements-lock.txt | head -1)
+          if [ "${LOCK_FASTMCP}" != "${FASTMCP_SPEC}" ]; then
+            echo "::error::requirements-lock.txt fastmcp pin (${LOCK_FASTMCP:-MISSING}) disagrees with pyproject.toml floor (${FASTMCP_SPEC})"
+            exit 1
+          fi
+
+          # CLAUDE.md must reference the current fastmcp version and must not
+          # still describe the pre-migration 2.14.5 pin.
+          if ! nocomments CLAUDE.md | grep -q "${FASTMCP_SPEC}"; then
+            echo "::error::CLAUDE.md does not mention fastmcp ${FASTMCP_SPEC}"
+            exit 1
+          fi
+          if nocomments CLAUDE.md | grep -q "2\.14\.5"; then
+            echo "::error::CLAUDE.md still references the stale fastmcp 2.14.5"
+            exit 1
+          fi
+
+          # install.bat's banner must match the current project version.
+          if ! nocomments install.bat | grep -q "v${PROJECT_VERSION}"; then
+            echo "::error::install.bat banner does not match pyproject version v${PROJECT_VERSION}"
+            exit 1
+          fi
+
+          # Dockerfile installs fastmcp transitively via pyproject (single
+          # source of truth) — it must not carry its own stale hardcoded pin.
+          if nocomments Dockerfile | grep -qE "fastmcp==(2\.|3\.[0-3]\.)"; then
+            echo "::error::Dockerfile pins a stale fastmcp version"
+            exit 1
+          fi
+          if nocomments Dockerfile | grep -q "2\.14\.5"; then
+            echo "::error::Dockerfile still references the stale fastmcp 2.14.5"
+            exit 1
+          fi
+
+          # None of the four version-bearing files may reference a
+          # pre-3.4.4-migration project version string.
+          for f in pyproject.toml Dockerfile CLAUDE.md install.bat; do
+            if nocomments "$f" | grep -qE "v1\.3\.0|v1\.4\.[0-9]+"; then
+              echo "::error::$f references a stale pre-migration project version"
+              exit 1
+            fi
+          done
+
+          echo "Version drift guard passed: project=${PROJECT_VERSION} fastmcp=${FASTMCP_SPEC}"
+
+  # Windows-targeted: vendor/ is an air-gapped win_amd64 wheelhouse (that's the
+  # supported offline path — see CONTEXT.md decision 3), so this must run on a
+  # Windows runner with a matching CPython to actually resolve the wheels.
+  offline-smoke:
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Clean-venv air-gapped install from vendor/ (win_amd64 wheelhouse)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m venv offline-venv
+          .\offline-venv\Scripts\pip.exe install --no-index --find-links vendor matlab-mcp-python
+          .\offline-venv\Scripts\python.exe -c "from matlab_mcp.server import main; print('OK: offline import from vendored wheelhouse')"
+
   test:
     needs: lint
     runs-on: ubuntu-latest
@@ -104,6 +195,21 @@ jobs:
         run: |
           call .venv\Scripts\activate.bat
           python -c "from matlab_mcp.server import main; print('OK: server module loads')"
+      - name: Real MATLAB release-detection path runs on Windows (no MATLAB)
+        shell: pwsh
+        run: |
+          # Exercises the real winreg + filesystem-glob detection on an actual
+          # Windows runner with no MATLAB installed — the platform-specific code
+          # path that mocked unit tests can't cover (this is where the R20??
+          # glob bug lived). Must return "no release" without raising.
+          .\.venv\Scripts\python.exe -c @"
+          import sys; sys.path.insert(0, 'scripts')
+          import install_matlab_engine as m
+          rel = m.detect_release()
+          print('detect_release ->', rel)
+          assert rel is None, f'expected None on a MATLAB-less runner, got {rel!r}'
+          print('OK: real winreg+glob detection is clean on Windows')
+          "@
 
   test-macos:
     needs: lint
@@ -141,23 +247,61 @@ jobs:
         shell: bash -el {0}
         run: pytest tests/ -v -k "not matlab" --ignore=tests/test_integration.py --ignore=tests/test_mcp_integration.py -W ignore::pytest.PytestUnraisableExceptionWarning
 
-  conda-test-pypi:
+  # Re-homed off conda onto plain pip: the conda environment.yml path is
+  # deprecated in favor of pixi (see environment.yml deprecation notice), so
+  # the published-wheel smoke no longer needs a conda env to prove itself.
+  pip-test-pypi:
     needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/setup-python@v5
         with:
-          activate-environment: matlab-mcp
-          environment-file: environment.yml
-          auto-activate-base: false
           python-version: "3.12"
+      - run: pip install matlab-mcp-python
       - name: Verify server loads (PyPI install)
-        shell: bash -el {0}
         run: |
           python -c "from matlab_mcp.server import main; print('OK: server')"
           python -c "from matlab_mcp.config import AppConfig; print('OK: config')"
           matlab-mcp --help
+
+  pixi:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.72.2
+          run-install: false
+      - name: Regression guard — matlabengine absent from pixi.toml deps
+        run: |
+          set -euo pipefail
+          # matlabengine is sdist-only and its build raises on any machine
+          # without a matching MATLAB — it must never be a static pixi
+          # dependency (only installed on demand by the install-engine task).
+          if grep -v '^\s*#' pixi.toml | grep -qi matlabengine; then
+            echo "::error::matlabengine must not appear as a live pixi.toml dependency"
+            exit 1
+          fi
+      - name: pixi install (no MATLAB on this runner)
+        run: pixi install
+      - name: Assert server imports engine-free
+        run: |
+          pixi run python -c "from matlab_mcp.server import main; print('OK: pixi engine-free import')"
+      - name: install-engine reports no MATLAB cleanly (real detection path, no license)
+        run: |
+          # The runner has no MATLAB, so `pixi run install-engine` must detect
+          # that, error clearly, and exit non-zero WITHOUT attempting a pip
+          # install — exercising the real release-detection code on Linux
+          # (the glob/registry path that a mocked unit test cannot cover).
+          set +e
+          OUT=$(pixi run install-engine 2>&1); CODE=$?
+          set -e
+          echo "$OUT"
+          test "$CODE" -ne 0 || { echo "::error::install-engine exited 0 with no MATLAB present"; exit 1; }
+          echo "$OUT" | grep -qi "matlab" || { echo "::error::no-MATLAB error message should mention MATLAB"; exit 1; }
+          echo "OK: install-engine reported no MATLAB cleanly (exit $CODE)"
 
   integration-test:
     needs: lint
@@ -181,8 +325,15 @@ jobs:
       - run: pip install -e ".[dev,monitoring]" pytest-timeout
       - run: pytest tests/test_mcp_integration.py -v -m integration --timeout=60
 
+  # Gated: `up --build` builds the multi-GB licensed mathworks/matlab server
+  # image and starts it, which generic CI has no license for. Only runs when a
+  # MATLAB_LICENSE_AVAILABLE repo variable is set (e.g. a self-hosted runner
+  # with a network license manager) — same gate as the `docker` job's real
+  # build. License-free `docker compose config` validation of both compose
+  # files already runs unconditionally in the `docker` job.
   remote-integration-test:
     needs: lint
+    if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -196,8 +347,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t matlab-mcp:test .
+      # Unconditional — validates both compose files resolve without needing
+      # a real license. MLM_LICENSE_FILE only needs to be *set* to satisfy the
+      # docker-compose.yml fail-fast `:?` guard; the placeholder value is
+      # never used to contact a real license server since nothing runs here.
+      - name: Validate compose files (no license required)
+        env:
+          MLM_LICENSE_FILE: "27000@ci-placeholder"
+        run: |
+          docker compose config
+          docker compose -f docker-compose.test.yml config
+      # Gated: building/running the real mathworks/matlab image and starting
+      # an engine pool against it needs a MATLAB license, which generic CI
+      # does not have. Only runs when a MATLAB_LICENSE_AVAILABLE repo
+      # variable is explicitly set (e.g. self-hosted runner with a network
+      # license manager reachable).
+      - name: Build the mathworks/matlab image
+        if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
+        run: docker build -t matlab-mcp:test .
       - name: Smoke-test container health endpoint
+        if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
         run: |
           docker run -d --name mcp-test \
             -e MATLAB_MCP_SERVER_TRANSPORT=sse \

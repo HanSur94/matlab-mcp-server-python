@@ -327,7 +327,6 @@ class TestStaticPathTraversal:
     def test_static_path_traversal_blocked(self) -> None:
         """Path traversal attempts should return 403 Forbidden."""
         from matlab_mcp.monitoring.dashboard import register_monitoring_routes
-        from unittest.mock import MagicMock
         try:
             from fastmcp import FastMCP
         except ImportError:
