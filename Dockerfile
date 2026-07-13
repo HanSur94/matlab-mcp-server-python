@@ -8,10 +8,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# matlabengine version MUST match the MATLAB_RELEASE image above:
-#   r2022b->9.13.* r2023a->9.14.* r2023b->9.15.*
-#   r2024a->24.1.* r2024b->24.2.* r2025a->25.1.* r2025b->25.2.* r2026a->26.1.*
-RUN pip3 install --no-cache-dir "matlabengine==25.1.*"
+# matlabengine version MUST match the MATLAB_RELEASE image above. Map the
+# release token to its matching matlabengine <major>.<minor> pin so that
+# `--build-arg MATLAB_RELEASE=r2024b` installs the correct engine instead of
+# a hardcoded one. Redeclare the ARG inside the build stage — an ARG declared
+# before FROM is only in scope for the FROM line, not for later RUNs; a bare
+# `ARG MATLAB_RELEASE` here inherits the pre-FROM default (r2025a) or the
+# --build-arg override.
+ARG MATLAB_RELEASE
+RUN case "$MATLAB_RELEASE" in \
+        r2022b) ENGINE_VER="9.13.*" ;; \
+        r2023a) ENGINE_VER="9.14.*" ;; \
+        r2023b) ENGINE_VER="9.15.*" ;; \
+        r2024a) ENGINE_VER="24.1.*" ;; \
+        r2024b) ENGINE_VER="24.2.*" ;; \
+        r2025a) ENGINE_VER="25.1.*" ;; \
+        r2025b) ENGINE_VER="25.2.*" ;; \
+        r2026a) ENGINE_VER="26.1.*" ;; \
+        *) echo "Unsupported MATLAB_RELEASE: $MATLAB_RELEASE" >&2; exit 1 ;; \
+    esac && \
+    pip3 install --no-cache-dir "matlabengine==${ENGINE_VER}"
 
 # Install the project via pyproject — single source of truth for fastmcp/deps
 # (no hardcoded fastmcp/plotly pins here).
