@@ -10,7 +10,7 @@ title MATLAB MCP Server Installer
 
 echo.
 echo  ============================================================
-echo   MATLAB MCP Server - Windows Installer v1.5.0
+echo   MATLAB MCP Server - Windows Installer v2.1.0
 echo   (no administrator rights required)
 echo  ============================================================
 echo.
