@@ -2,7 +2,7 @@
 
 A Python [Model Context Protocol](https://modelcontextprotocol.io/) server that lets any MCP-compatible AI coding agent (Claude Code, Cursor, Codex CLI, custom agents) execute MATLAB code, inspect workspaces, manage session files, and monitor server health. It bridges MCP to MATLAB's Engine API with an elastic engine pool, per-session workspace isolation, and async job orchestration.
 
-- **Package:** `matlab-mcp-python` (v1.5.0) · **CLI:** `matlab-mcp` · **License:** MIT · **Repo:** [HanSur94/matlab-mcp-server-python](https://github.com/HanSur94/matlab-mcp-server-python)
+- **Package:** `matlab-mcp-python` (v2.1.0) · **CLI:** `matlab-mcp` · **License:** MIT · **Repo:** [HanSur94/matlab-mcp-server-python](https://github.com/HanSur94/matlab-mcp-server-python)
 
 ## Features
 
