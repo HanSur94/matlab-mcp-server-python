@@ -1,188 +1,216 @@
 # Configuration
 
-All settings are in `config.yaml` with sensible defaults. Every setting can be overridden via environment variables with the `MATLAB_MCP_` prefix.
+All settings live in `config.yaml` with sensible defaults. The file is optional — if it is absent, the built-in defaults are used. Every setting can be overridden via `MATLAB_MCP_*` environment variables.
 
-## Config File Location
+The schema is defined by Pydantic models in `src/matlab_mcp/config.py`. Unknown keys in `config.yaml` are silently ignored, so a typo (or a key that is not a real field) has no effect.
 
-The server looks for `config.yaml` in the current working directory by default. Override with:
+## Config file location
+
+The server looks for `./config.yaml` in the current working directory. Override the path with:
 
 ```bash
 matlab-mcp --config /path/to/my_config.yaml
 ```
 
-## Environment Variable Overrides
+Relative paths in `server.result_dir`, `server.log_file`, `execution.temp_dir`, `custom_tools.config_file`, and `monitoring.db_path` are resolved to absolute paths **relative to the config file's directory** at startup.
 
-Any config value can be set via environment variable using the pattern `MATLAB_MCP_<SECTION>_<KEY>`:
+## Environment-variable overrides
+
+Any config value can be set via an environment variable using the pattern `MATLAB_MCP_<SECTION>_<KEY>`:
 
 ```bash
 export MATLAB_MCP_POOL_MIN_ENGINES=4
 export MATLAB_MCP_POOL_MAX_ENGINES=16
 export MATLAB_MCP_EXECUTION_SYNC_TIMEOUT=60
-export MATLAB_MCP_SERVER_TRANSPORT=sse
+export MATLAB_MCP_SERVER_TRANSPORT=streamablehttp
 export MATLAB_MCP_SERVER_PORT=9000
 ```
 
-**Note:** The section name is determined by splitting on the first underscore after `MATLAB_MCP_`. This means single-word sections work as expected (e.g., `MATLAB_MCP_POOL_MAX_ENGINES` → `pool.max_engines`), but multi-word section names like `code_checker` or `custom_tools` cannot be overridden via environment variables. Use the config file for those sections instead.
+Values are coerced in the order int → float → bool (`true`/`false`) → string.
 
-## Full Configuration Reference
+**Section splitting:** the text after `MATLAB_MCP_` is lowercased and split on the **first** underscore into `section` and `key`. This works for every single-word section (`server`, `pool`, `execution`, `security`, `sessions`, `monitoring`, `output`, `workspace`, `toolboxes`, `hitl`), but multi-word sections such as `code_checker` and `custom_tools` cannot be reached this way (`MATLAB_MCP_CODE_CHECKER_ENABLED` would parse as section `code`, key `checker_enabled`). Use the config file for those.
 
-### Server
+**Auth token is not a config key.** The bearer token is read only from the `MATLAB_MCP_AUTH_TOKEN` environment variable — never from `config.yaml`. `load_config` logs a warning if any config key looks like a secret (contains `token`, `secret`, `api_key`, `password`, or `bearer`). See [Security](Security) for details.
 
-```yaml
-server:
-  name: "matlab-mcp-server"        # Server name reported to MCP clients
-  transport: "stdio"                # stdio | sse
-  host: "0.0.0.0"                  # Bind address (SSE only)
-  port: 8765                       # Port (SSE only)
-  log_level: "info"                # debug | info | warning | error
-  log_file: "./logs/server.log"    # Log file path
-  result_dir: "./results"          # Where to store result files
-  drain_timeout_seconds: 300       # Max wait for running jobs during shutdown
-```
+## Full configuration reference
 
-### Pool
+### server
 
-```yaml
-pool:
-  min_engines: 2                   # Always keep this many engines warm
-  max_engines: 10                  # Hard ceiling (capped at 4 on macOS)
-  scale_down_idle_timeout: 900     # Seconds idle before scaling down (15 min)
-  engine_start_timeout: 120        # Seconds to wait for MATLAB to start
-  health_check_interval: 60        # Seconds between health pings
-  proactive_warmup_threshold: 0.8  # Utilization ratio to trigger warmup
-  queue_max_size: 50               # Max pending requests in queue
-  matlab_root: null                # Auto-detect, or set explicit MATLAB path
-```
+General server settings.
 
-**macOS Note:** MATLAB on macOS has a 4-engine limit. The server will log a warning if `max_engines > 4` on macOS but still respects the configured value.
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `name` | str | `"matlab-mcp-server"` | Server name reported to MCP clients |
+| `transport` | enum | `"stdio"` | `stdio` \| `sse` \| `streamablehttp` |
+| `host` | str | `"127.0.0.1"` | Bind address for HTTP transports (shipped `config.yaml` sets `0.0.0.0`) |
+| `port` | int | `8765` | Port for HTTP transports |
+| `log_level` | enum | `"info"` | `debug` \| `info` \| `warning` \| `error` |
+| `log_file` | str | `"./logs/server.log"` | Log file path |
+| `result_dir` | str | `"./results"` | Where result files are stored |
+| `drain_timeout_seconds` | int | `300` | Max wait for running jobs during graceful shutdown |
+| `stateless_http` | bool | `false` | Run streamable-http in stateless mode |
+| `cors_origins` | list[str] | `["*"]` | Allowed CORS origins for HTTP transports |
 
-### Execution
+`streamablehttp` is the recommended HTTP transport; `sse` is kept only for back-compat and logs a deprecation warning at startup.
 
-```yaml
-execution:
-  sync_timeout: 30                 # Seconds before auto-promoting to async
-  max_execution_time: 86400        # Hard limit per job (24h = 86400s)
-  workspace_isolation: true        # Clear workspace between sessions
-  engine_affinity: false           # Pin session to specific engine
-  temp_dir: "./temp"               # Temporary file directory
-  temp_cleanup_on_disconnect: true # Delete temp files when session ends
-```
+### pool
 
-**sync_timeout:** When code runs longer than this, the server automatically promotes it to an async job and returns a `job_id` for polling. Increase this for environments where most code is expected to take 30-60 seconds.
+MATLAB engine pool sizing and timeouts.
 
-### Workspace
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `min_engines` | int | `2` | Always keep this many engines warm |
+| `max_engines` | int | `10` | Hard ceiling |
+| `scale_down_idle_timeout` | int | `900` | Seconds idle before scaling down (15 min) |
+| `engine_start_timeout` | int | `120` | Seconds to wait for a MATLAB engine to start |
+| `health_check_interval` | int | `60` | Seconds between health pings |
+| `queue_max_size` | int | `50` | Max pending requests in the queue |
+| `matlab_root` | str \| null | `null` | Auto-detect, or set an explicit MATLAB path |
 
-```yaml
-workspace:
-  default_paths:                   # Added to MATLAB path on engine start
-    - "/shared/custom_libs"
-    - "/shared/data"
-  startup_commands:                # Run on each engine start
-    - "format long"
-```
+`min_engines` must not exceed `max_engines` (validated at load; raises `ValueError` otherwise).
 
-### Toolboxes
+**macOS note:** the shipped `config.yaml` comment says "capped at 4 on macOS", but the code only **warns** when `max_engines > 4` on macOS (running more than 4 `matlab.engine` instances in one Python process on macOS is unstable). It does not hard-cap the value.
 
-```yaml
-toolboxes:
-  mode: "whitelist"                # whitelist | blacklist | all
-  list:
-    - "Signal Processing Toolbox"
-    - "Optimization Toolbox"
-    - "Statistics and Machine Learning Toolbox"
-    - "Image Processing Toolbox"
-```
+> The shipped `config.yaml` also includes `proactive_warmup_threshold`, but that is **not** a modeled field — it is ignored and has no effect.
+
+### execution
+
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `sync_timeout` | int | `30` | Seconds before a job is auto-promoted to async |
+| `max_execution_time` | int | `86400` | Hard per-job limit (24 h) |
+| `workspace_isolation` | bool | `true` | Clear workspace between sessions |
+| `engine_affinity` | bool | `false` | Pin a session to an engine for workspace persistence |
+| `temp_dir` | str | `"./temp"` | Temporary file directory |
+| `temp_cleanup_on_disconnect` | bool | `true` | Delete temp files when a session ends |
+
+**`sync_timeout`:** when code runs longer than this, the server promotes it to an async job and returns a `job_id` for polling. Increase it if most of your code is expected to take 30–60 s.
+
+### workspace
+
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `default_paths` | list[str] | `[]` | Added to the MATLAB path on engine start/reset |
+| `startup_commands` | list[str] | `["format long"]` | Run on each engine start and after a workspace reset |
+
+The server also auto-inserts its bundled `matlab_helpers` directory onto the MATLAB path.
+
+### toolboxes
+
+Controls which toolboxes `list_toolboxes` reports to agents.
+
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `mode` | enum | `"whitelist"` | `whitelist` \| `blacklist` \| `all` |
+| `list` | list[str] | `[]` | Toolbox names for the whitelist/blacklist |
 
 | Mode | Behavior |
 |------|----------|
-| `whitelist` | Only listed toolboxes are reported to agents |
+| `whitelist` | Only listed toolboxes are reported |
 | `blacklist` | All toolboxes EXCEPT listed ones are reported |
 | `all` | All installed toolboxes are reported |
 
-### Custom Tools
+### custom_tools
 
-```yaml
-custom_tools:
-  config_file: "./custom_tools.yaml"  # Path to custom tools YAML
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `config_file` | str | `"./custom_tools.yaml"` | Path to the custom-tools YAML file |
+
+See [Custom Tools](Custom-Tools) for the file format.
+
+### security
+
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `blocked_functions_enabled` | bool | `true` | Master switch for the blocklist |
+| `blocked_functions` | list[str] | see below | MATLAB functions blocked from execution |
+| `max_upload_size_mb` | int | `100` | Max size for `upload_data` |
+| `require_proxy_auth` | bool | `false` | Acknowledge that an external auth proxy fronts the server (suppresses the "HTTP without auth" warning); does not itself enforce auth |
+
+The code default `blocked_functions` list is:
+
+```
+system, unix, dos, !, eval, feval, evalc, evalin, assignin,
+perl, python, str2func, builtin, run
 ```
 
-See [[Custom Tools]] for the full custom tools format.
+The shipped `config.yaml` overrides this with a shorter list that omits the last three (`str2func`, `builtin`, `run`). The security validator strips string literals and comments before scanning, so `disp('system')` does not trigger a false positive.
 
-### Security
+Setting `blocked_functions_enabled: false` makes **all** code execution unrestricted and logs a warning at load.
 
-```yaml
-security:
-  blocked_functions_enabled: true
-  blocked_functions:
-    - "system"
-    - "unix"
-    - "dos"
-    - "!"
-    - "eval"
-    - "feval"
-    - "evalc"
-    - "evalin"
-    - "assignin"
-    - "perl"
-    - "python"
-  max_upload_size_mb: 100
-  require_proxy_auth: false        # Set true for production SSE deployments
-```
+### code_checker
 
-**blocked_functions:** These MATLAB functions are blocked from execution. The security validator strips string literals and comments before scanning, so `disp('system')` won't trigger a false positive.
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `enabled` | bool | `true` | Enable the `check_code` linter |
+| `auto_check_before_execute` | bool | `false` | Run `checkcode` before every execution |
+| `severity_levels` | list[str] | `["error", "warning"]` | Severities to report |
 
-### Code Checker
+### output
 
-```yaml
-code_checker:
-  enabled: true
-  auto_check_before_execute: false  # Run checkcode before every execution
-  severity_levels: ["error", "warning"]
-```
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `plotly_conversion` | bool | `true` | Convert MATLAB figures to Plotly JSON |
+| `static_image_format` | enum | `"png"` | `png` \| `jpg` \| `svg` |
+| `static_image_dpi` | int | `150` | DPI for static image export |
+| `thumbnail_enabled` | bool | `true` | Generate figure thumbnails |
+| `thumbnail_max_width` | int | `400` | Max thumbnail width (px) |
+| `large_result_threshold` | int | `10000` | Elements — above this, save tabular/matrix data to file |
+| `max_inline_text_length` | int | `50000` | Chars — above this, save text output to file |
 
-### Output
+### sessions
 
-```yaml
-output:
-  plotly_conversion: true          # Convert MATLAB figures to Plotly JSON
-  static_image_format: "png"       # png | jpg | svg
-  static_image_dpi: 150
-  thumbnail_enabled: true
-  thumbnail_max_width: 400
-  large_result_threshold: 10000    # Elements — save large results to file
-  max_inline_text_length: 50000    # Chars — save long text to file
-```
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `max_sessions` | int | `50` | Max concurrent sessions |
+| `session_timeout` | int | `3600` | Seconds of inactivity before cleanup (1 h) |
+| `job_retention_seconds` | int | `86400` | How long completed job metadata is kept (24 h) |
 
-### Sessions
+### monitoring
 
-```yaml
-sessions:
-  max_sessions: 50
-  session_timeout: 3600            # Seconds of inactivity before cleanup (1h)
-  job_retention_seconds: 86400     # Keep completed job metadata for 24h
-```
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `enabled` | bool | `true` | Enable metrics collection |
+| `sample_interval` | int | `10` | Seconds between metric samples |
+| `retention_days` | int | `7` | Days of historical data to keep |
+| `db_path` | str | `"./monitoring/metrics.db"` | SQLite database path |
+| `dashboard_enabled` | bool | `true` | Enable the web dashboard |
+| `http_port` | int | `8766` | Dashboard/health port (stdio transport only) |
 
-### Monitoring
+Under `stdio` transport the dashboard/health app runs on `127.0.0.1:8766`. Under `sse`/`streamablehttp` the monitoring routes are mounted on the main MCP app instead (port `8765`). Monitoring needs the optional `psutil` and `uvicorn` dependencies:
 
-```yaml
-monitoring:
-  enabled: true                      # Enable metrics collection
-  sample_interval: 10                # Seconds between metric samples
-  retention_days: 7                  # Days to keep historical data
-  db_path: "./monitoring/metrics.db" # SQLite database path
-  dashboard_enabled: true            # Enable web dashboard
-  http_port: 8766                    # Dashboard port (stdio only)
-```
-
-**Note:** Monitoring requires optional dependencies (`psutil`, `uvicorn`). Install with:
 ```bash
-pip install -e ".[monitoring]"
-# or pip install -e ".[dev]"  (dev includes monitoring dependencies)
+pip install "matlab-mcp-python[monitoring]"
 ```
 
-## Example Configurations
+### hitl
 
-See the [`examples/`](https://github.com/HanSur94/matlab-mcp-server-python/tree/master/examples) directory for ready-to-use configurations:
+Human-in-the-loop approval gate. Disabled by default; when enabled, matching operations pause and prompt for approval via the MCP elicitation protocol before proceeding. In the shipped `config.yaml` this whole section is commented out.
 
-- `config_minimal.yaml` — Single user, minimal settings
-- `config_multiuser.yaml` — Multi-user SSE with larger pool and stricter security
+| Key | Type | Default | Notes |
+|-----|------|---------|-------|
+| `enabled` | bool | `false` | Master switch — no HITL prompts appear when false |
+| `protected_functions` | list[str] | `[]` | MATLAB function names that require approval before execution |
+| `protect_file_ops` | bool | `false` | Require approval for file upload/delete |
+| `all_execute` | bool | `false` | Require approval for **all** `execute_code` calls |
+
+```yaml
+hitl:
+  enabled: true
+  protected_functions: ["delete", "rmdir", "fclose", "ftp"]
+  protect_file_ops: true
+  all_execute: false
+```
+
+## Example configurations
+
+See the [`examples/`](https://github.com/HanSur94/matlab-mcp-server-python/tree/master/examples) directory for ready-to-use configs:
+
+- `config_minimal.yaml` — single user, minimal settings
+- `config_multiuser.yaml` — multi-user HTTP with a larger pool and stricter security
+
+## See also
+
+- [Installation](Installation)
+- [Security](Security)
+- [Custom Tools](Custom-Tools)

@@ -1,63 +1,95 @@
 # Custom Tools
 
-Expose your own MATLAB functions as first-class MCP tools. AI agents can discover and call them directly, with full parameter validation and help text.
+Expose your own MATLAB functions as first-class MCP tools. AI agents discover and call them exactly like the built-in tools ([MCP Tools Reference](MCP-Tools-Reference)), with parameter types validated by the framework and your description shown as help text.
+
+Defined in `src/matlab_mcp/tools/custom.py`; loaded and registered at server startup in `create_server()`.
 
 ## How It Works
 
-1. Write your MATLAB function (`.m` file)
-2. Describe it in `custom_tools.yaml`
-3. The server registers it as an MCP tool at startup
-4. Agents see it alongside built-in tools
+1. Write your MATLAB function (`.m` file) and make sure MATLAB can find it.
+2. Describe it in `custom_tools.yaml`.
+3. At startup the server reads the YAML, builds a typed handler per tool, and registers it with FastMCP.
+4. When an agent calls the tool, the server assembles a positional MATLAB call and runs it through the same executor (and security checks) as `execute_code`.
+
+Registration is best-effort: a malformed tool definition is logged and skipped, and the server keeps running.
 
 ## Configuration
 
-Point your `config.yaml` to the custom tools file:
+Point `config.yaml` at the custom tools file (this is the default):
 
 ```yaml
 custom_tools:
   config_file: "./custom_tools.yaml"
 ```
 
-## YAML Format
+Relative paths are resolved against the config file's directory. The shipped `custom_tools.yaml` starts empty:
+
+```yaml
+tools: []
+```
+
+## YAML Schema
+
+The file has a single top-level `tools:` list. Each entry maps to a `CustomToolDef`:
 
 ```yaml
 tools:
-  - name: tool_name                # MCP tool name (what agents call)
-    matlab_function: pkg.func      # MATLAB function to call
-    description: "What it does"    # Shown to agents
-    parameters:
-      - name: param_name
-        type: string               # string | float | int | bool (see table below)
-        required: true             # or false
+  - name: tool_name              # MCP tool name the agent calls (required)
+    matlab_function: pkg.func    # MATLAB function invoked (required)
+    description: "What it does"   # Shown to the agent; defaults to "Custom tool: <name>"
+    parameters:                  # Ordered list; defaults to empty
+      - name: param_name         # Parameter name / MATLAB arg (required)
+        type: string             # See Parameter Types below; defaults to "str"
+        required: true           # Defaults to true
       - name: optional_param
         type: float
-        default: 1.0               # Default value if not provided
-    returns: "Description of return value"
+        required: false
+        default: 1.0             # Used when not supplied by the caller
+    returns: "Description of the return value"   # Documentation only
 ```
+
+Notes:
+
+- `parameters` order is significant — arguments are passed to MATLAB **positionally in this order**.
+- `returns` is purely descriptive text; it does not shape the result.
+- An implicit `ctx` argument is injected by the framework and is **not** part of your `parameters` — the agent never sees it.
 
 ## Parameter Types
 
-| YAML Type | Aliases | Python Type |
-|-----------|---------|-------------|
-| `string` | `str` | `str` |
-| `float` | `number` | `float` |
-| `int` | `integer` | `int` |
-| `bool` | `boolean` | `bool` |
-| `list` | — | `list` |
-| `dict` | — | `dict` |
-| `any` | — | `Any` |
+The `type` string is matched case-insensitively against this map (`_TYPE_MAP`); anything unrecognized falls back to `str`.
+
+| YAML `type` | Aliases | Python type | MATLAB rendering |
+|-------------|---------|-------------|------------------|
+| `str` | `string` | `str` | single-quoted string, `'...'` |
+| `int` | `integer` | `int` | numeric literal |
+| `float` | `number` | `float` | numeric literal |
+| `bool` | `boolean` | `bool` | `true` / `false` |
+| `list` | — | `list` | `str(value)` |
+| `dict` | — | `dict` | `str(value)` |
+| `any` | — | `Any` | `str(value)` |
+
+String arguments are made injection-safe by doubling any single quotes before they are wrapped in `'...'`. `list`/`dict`/`any` are rendered with plain `str()`, so they are best suited to simple scalar values.
+
+## How the MATLAB Call Is Built
+
+For a call the server:
+
+1. Binds the supplied arguments to the tool signature and applies defaults, so **every** parameter (required and optional) is always passed.
+2. Renders each value to a MATLAB literal per the table above, in `parameters` order.
+3. Executes `matlab_function(arg1, arg2, ...)` through the executor for the current session.
+
+Because the call is a bare expression (no assignment, no trailing semicolon), MATLAB echoes the result into the session output and `ans`, and it comes back to the agent as a normal execution result — the same status / output / variables shape as `execute_code`. Your MATLAB function must accept exactly the number of positional arguments you declare.
+
+Custom tools are **not** exempt from security: the executor runs the assembled code through the same [Security](Security) validator, so blocked functions and other checks still apply.
 
 ## Complete Example
 
-### 1. MATLAB Function (`mylib/analyze_signal.m`)
+### 1. MATLAB function (`mylib/analyze_signal.m`)
 
 ```matlab
 function result = analyze_signal(signal_path, sample_rate, window_size)
-    % ANALYZE_SIGNAL  Frequency analysis of a signal file
-    %
+    % ANALYZE_SIGNAL  Frequency analysis of a signal file.
     %   result = analyze_signal(signal_path, sample_rate, window_size)
-    %
-    %   Returns struct with: frequencies, magnitudes, snr, peaks
 
     data = load(signal_path);
     signal = data.signal;
@@ -67,16 +99,13 @@ function result = analyze_signal(signal_path, sample_rate, window_size)
     f = (0:window_size/2-1) * sample_rate / window_size;
     mag = abs(Y(1:window_size/2)) / N;
 
-    [peaks, locs] = findpeaks(mag, 'MinPeakHeight', max(mag)*0.1);
-
     result.frequencies = f;
-    result.magnitudes = mag;
-    result.snr = snr(signal);
-    result.peaks = struct('frequencies', f(locs), 'amplitudes', peaks);
+    result.magnitudes  = mag;
+    result.snr         = snr(signal);
 end
 ```
 
-### 2. Custom Tool Definition (`custom_tools.yaml`)
+### 2. Tool definition (`custom_tools.yaml`)
 
 ```yaml
 tools:
@@ -94,13 +123,14 @@ tools:
         required: true
       - name: window_size
         type: int
+        required: false
         default: 1024
-    returns: "Struct with fields: frequencies, magnitudes, snr, peaks"
+    returns: "Struct with fields: frequencies, magnitudes, snr"
 ```
 
-### 3. Make Sure MATLAB Can Find It
+### 3. Make MATLAB find the function
 
-Add the directory containing your `.m` files to the workspace paths in `config.yaml`:
+Add the directory containing your `.m` files to `workspace.default_paths` in `config.yaml` (these paths are added to the MATLAB path when engines start; see [Configuration](Configuration)):
 
 ```yaml
 workspace:
@@ -108,16 +138,13 @@ workspace:
     - "/path/to/mylib"
 ```
 
-### 4. Agent Usage
+### 4. Agent usage
 
-The agent now sees `analyze_signal` as a tool and can call it:
+The agent now sees `analyze_signal` as a tool. Asked to "analyze the signal in `data/recording.mat` at 44100 Hz", it calls the tool, and the server runs:
 
-> "Analyze the signal in data/recording.mat at 44100 Hz sample rate"
-
-The server:
-1. Validates parameters against the YAML schema
-2. Calls `analyze_signal('data/recording.mat', 44100, 1024)` in MATLAB
-3. Returns the result to the agent
+```matlab
+analyze_signal('data/recording.mat', 44100, 1024)
+```
 
 ## Multiple Tools
 
@@ -141,25 +168,16 @@ tools:
         required: true
       - name: model_type
         type: string
+        required: false
         default: "svm"
     returns: "Trained model and accuracy metrics"
-
-  - name: process_image
-    matlab_function: imgtools.enhance
-    description: "Image enhancement pipeline"
-    parameters:
-      - name: image_path
-        type: string
-        required: true
-      - name: denoise_strength
-        type: float
-        default: 0.5
-    returns: "Enhanced image saved to temp directory"
 ```
 
 ## Tips
 
-- **Function names with packages:** Use `pkg.func` notation to call functions in MATLAB packages (e.g., `+mylib/analyze_signal.m` → `mylib.analyze_signal`)
-- **MEX files:** Custom tools work with `.mex` files too — just reference the function name without the extension
-- **Error handling:** If the MATLAB function throws an error, the MCP server returns a structured error response to the agent
-- **Testing:** Test your functions in MATLAB first before exposing them as tools
+- **Package notation:** `matlab_function` is interpolated verbatim before `(...)`, so `mylib.analyze_signal` calls a function in the `+mylib` package (`+mylib/analyze_signal.m`).
+- **Type coercion:** unknown `type` values silently become `str`. Double-check spelling against the [Parameter Types](#parameter-types) table.
+- **Optional means defaulted, not skipped:** every declared parameter is passed on every call. There is no way to omit a middle argument — give it a sensible `default` instead.
+- **Complex inputs:** `list`/`dict`/`any` are rendered with `str()` and are not guaranteed to produce valid MATLAB. Prefer passing a file path or a simple scalar and unpacking inside the `.m` function.
+- **Errors:** if the MATLAB function throws, the failure is returned as a structured execution error to the agent, like any other `execute_code` result.
+- **Test in MATLAB first** before exposing a function as a tool.
