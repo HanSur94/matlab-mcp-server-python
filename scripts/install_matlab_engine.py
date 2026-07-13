@@ -152,14 +152,14 @@ def _discover_releases_registry() -> list[str]:
 def _glob_patterns() -> list[str]:
     """Return platform-specific filesystem glob patterns for MATLAB installs."""
     if sys.platform == "win32":
-        patterns = [r"C:\Program Files\MATLAB\R20??"]
+        patterns = [r"C:\Program Files\MATLAB\R20*"]
         local_appdata = os.environ.get("LOCALAPPDATA", "")
         if local_appdata:
-            patterns.append(os.path.join(local_appdata, "Programs", "MATLAB", "R20??"))
+            patterns.append(os.path.join(local_appdata, "Programs", "MATLAB", "R20*"))
         return patterns
     return [
-        "/usr/local/MATLAB/R20??",
-        "/Applications/MATLAB_R20??.app",
+        "/usr/local/MATLAB/R20*",
+        "/Applications/MATLAB_R20*.app",
     ]
 
 

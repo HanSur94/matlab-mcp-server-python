@@ -6,6 +6,8 @@ this suite must pass on any host, including macOS/Linux CI with no MATLAB.
 """
 from __future__ import annotations
 
+import glob
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -111,6 +113,74 @@ class TestDetectRelease:
     def test_no_releases_discovered_returns_none(self, monkeypatch):
         monkeypatch.setattr(engine_script, "_discover_releases", lambda: [])
         assert engine_script.detect_release() is None
+
+
+# ---------------------------------------------------------------------------
+# Filesystem glob discovery: real glob against a temp install tree.
+#
+# Regression guard for the R20?? -> R20* pattern fix. The old "R20??" glob
+# could not match the 6-character release dirs MATLAB actually creates
+# (R2022b, R2024a, ...): fnmatch("R2022b", "R20??") is False. These tests run
+# the REAL discovery code (glob.glob + _extract_release_token +
+# _discover_releases_glob + detect_release) over an on-disk tree, patching
+# only _glob_patterns to point at the temp dir. Reverting to "R20??" makes
+# glob.glob return nothing and fails them.
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverReleasesGlob:
+    """Real filesystem-glob discovery, tied to the source's own glob string.
+
+    These drive the REAL ``_glob_patterns()`` (never mocking it), so the
+    wildcard under test is the one in the source. Reverting to the broken
+    ``R20??`` makes ``glob.glob`` match nothing and fails these tests.
+    """
+
+    def test_windows_localappdata_glob_finds_six_char_releases(
+        self, tmp_path, monkeypatch
+    ):
+        # The Windows LOCALAPPDATA pattern is built from the source's own R20*
+        # string, so pointing LOCALAPPDATA at a temp tree exercises the real
+        # pattern end to end.
+        monkeypatch.setattr(engine_script.sys, "platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        install_root = tmp_path / "Programs" / "MATLAB"
+        (install_root / "R2024b").mkdir(parents=True)
+        (install_root / "R2022b").mkdir(parents=True)
+        assert sorted(engine_script._discover_releases_glob()) == ["R2022b", "R2024b"]
+
+    def test_windows_localappdata_detect_release_newest_wins(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(engine_script.sys, "platform", "win32")
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        install_root = tmp_path / "Programs" / "MATLAB"
+        for release in ("R2022b", "R2024b", "R2023a"):
+            (install_root / release).mkdir(parents=True)
+        # winreg is absent on this host, so registry discovery returns [] and
+        # detection runs entirely over the real glob result — newest must win.
+        assert engine_script.detect_release() == "R2024b"
+
+    def test_posix_glob_pattern_components_match_six_char_releases(
+        self, tmp_path, monkeypatch
+    ):
+        # The POSIX patterns are hardcoded absolute paths with no env seam, so
+        # take their real wildcard component (e.g. "R20*", "MATLAB_R20*.app")
+        # straight from the source and prove it matches a concrete 6-char
+        # release dir/bundle on disk.
+        monkeypatch.setattr(engine_script.sys, "platform", "linux")
+        patterns = engine_script._glob_patterns()
+        assert patterns, "expected POSIX glob patterns"
+        for pattern in patterns:
+            component = os.path.basename(pattern)
+            assert "R20*" in component, f"broken wildcard in {component!r}"
+            concrete = component.replace("R20*", "R2024b")
+            base = tmp_path / component.replace("*", "_star")
+            base.mkdir()
+            (base / concrete).mkdir()
+            matches = glob.glob(str(base / component))
+            assert matches, f"real pattern component {component!r} matched nothing"
+            assert engine_script._extract_release_token(matches[0]) == "R2024b"
 
 
 # ---------------------------------------------------------------------------
