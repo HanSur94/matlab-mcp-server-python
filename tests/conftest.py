@@ -3,11 +3,8 @@ from __future__ import annotations
 
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 
-from matlab_mcp.config import AppConfig, ExecutionConfig, PoolConfig, WorkspaceConfig
-from matlab_mcp.jobs.executor import JobExecutor
-from matlab_mcp.jobs.tracker import JobTracker
+from matlab_mcp.config import PoolConfig, WorkspaceConfig
 from matlab_mcp.pool.engine import EngineState, MatlabEngineWrapper
 
 

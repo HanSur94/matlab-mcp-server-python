@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-from matlab_mcp.config import AppConfig, ExecutionConfig, OutputConfig, PoolConfig, WorkspaceConfig
+from matlab_mcp.config import AppConfig, ExecutionConfig, OutputConfig
 from matlab_mcp.jobs.executor import JobExecutor
 from matlab_mcp.jobs.models import Job, JobStatus
 from matlab_mcp.jobs.tracker import JobTracker
@@ -510,8 +510,7 @@ class TestWaitForCompletion:
         executor, tracker, wrapper, inner = _make_executor(
             sync_timeout=0, max_execution_time=10,
         )
-        result = await executor.execute("s1", "z = 3;")
-        job_id = result["job_id"]
+        await executor.execute("s1", "z = 3;")
 
         await _wait_for_engine_idle(wrapper)
 
