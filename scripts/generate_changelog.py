@@ -106,18 +106,60 @@ def group_commits(commits: list[dict]) -> dict[str, list[dict]]:
     return {k: v for k, v in groups.items() if v}
 
 
+SECTION_TITLES = {
+    "feat": "New Features",
+    "fix": "Bug Fixes",
+    "docs": "Documentation",
+    "ci": "CI/CD",
+    "refactor": "Other Changes",
+    "test": "Other Changes",
+    "chore": "Other Changes",
+    "other": "Other Changes",
+}
+SECTION_ORDER = ["New Features", "Bug Fixes", "Documentation", "CI/CD", "Other Changes"]
+
+
+def _clean_message(message: str) -> str:
+    """Strip the conventional-commit prefix and keep the first line."""
+    match = re.match(r"^\w+(?:\(.+?\))?!?:\s*(.+)", message)
+    text = match.group(1) if match else message
+    return text.strip().splitlines()[0]
+
+
+def render_fallback(grouped: dict[str, list[dict]], tag: str) -> str:
+    """Deterministic changelog from grouped commits — no API required.
+
+    Used when ANTHROPIC_API_KEY is absent or the Claude API call fails, so a
+    release is never blocked on changelog generation.
+    """
+    total = sum(len(v) for v in grouped.values())
+    lines = [f"## {tag}", "", f"{total} change{'s' if total != 1 else ''} since the previous release.", ""]
+    sections: dict[str, list[str]] = {}
+    for ctype in ["feat", "fix", "docs", "ci", "refactor", "test", "chore", "other"]:
+        for commit in grouped.get(ctype, []):
+            title = SECTION_TITLES.get(ctype, "Other Changes")
+            bullet = f"- {_clean_message(commit['message'])}"
+            bullets = sections.setdefault(title, [])
+            if bullet not in bullets:
+                bullets.append(bullet)
+    for title in SECTION_ORDER:
+        if sections.get(title):
+            lines.append(f"### {title}")
+            lines.extend(sections[title])
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def generate_changelog_via_api(grouped: dict[str, list[dict]], tag: str) -> str:
-    """Call Claude API to generate release notes."""
+    """Call Claude API to generate release notes. Raises on any failure."""
     try:
         import anthropic
-    except ImportError:
-        print("ERROR: anthropic package not installed. Run: pip install anthropic", file=sys.stderr)
-        sys.exit(1)
+    except ImportError as exc:
+        raise RuntimeError("anthropic package not installed") from exc
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("ERROR: ANTHROPIC_API_KEY environment variable not set", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError("ANTHROPIC_API_KEY environment variable not set")
 
     client = anthropic.Anthropic(api_key=api_key, timeout=TIMEOUT)
 
@@ -162,9 +204,8 @@ Requirements:
                 print(f"API call failed ({e}), retrying in {wait}s...", file=sys.stderr)
                 time.sleep(wait)
             else:
-                print(f"ERROR: API call failed after {MAX_RETRIES + 1} attempts: {e}", file=sys.stderr)
-                sys.exit(1)
-    sys.exit(1)
+                raise RuntimeError(f"API call failed after {MAX_RETRIES + 1} attempts: {e}") from e
+    raise RuntimeError("changelog API call produced no output")
 
 
 def main() -> None:
@@ -196,8 +237,18 @@ def main() -> None:
     grouped = group_commits(commits)
     print(f"Groups: {', '.join(f'{k}({len(v)})' for k, v in grouped.items())}")
 
-    print(f"Calling Claude API ({MODEL})...")
-    changelog = generate_changelog_via_api(grouped, tag)
+    changelog: str | None = None
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        print(f"Calling Claude API ({MODEL})...")
+        try:
+            changelog = generate_changelog_via_api(grouped, tag)
+        except Exception as exc:  # noqa: BLE001 — a changelog issue must never fail the release
+            print(f"WARNING: AI changelog unavailable ({exc}); using git-log fallback.", file=sys.stderr)
+    else:
+        print("ANTHROPIC_API_KEY not set — using git-log fallback.", file=sys.stderr)
+
+    if not changelog:
+        changelog = render_fallback(grouped, tag)
 
     OUTPUT_FILE.write_text(changelog)
     print(f"Written {len(changelog)} chars to {OUTPUT_FILE}")
