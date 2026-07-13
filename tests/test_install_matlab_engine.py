@@ -254,3 +254,44 @@ class TestModuleImportSafety:
         assert hasattr(engine_script, "install_engine")
         assert hasattr(engine_script, "main")
         assert isinstance(engine_script.RELEASE_TO_ENGINE, dict)
+
+
+# ---------------------------------------------------------------------------
+# main(): whitelist pre-check skipped when offline is forced; clean error on
+# a double (online+offline) failure instead of a raw traceback.
+# ---------------------------------------------------------------------------
+
+
+class TestMainOfflineForced:
+    def test_offline_forced_skips_whitelist_precheck_for_unwhitelisted_release(
+        self, monkeypatch, capsys
+    ):
+        # An unwhitelisted release (R2019a) fails resolve_engine_spec, but the
+        # forced-offline path never consults the whitelist — main() must not
+        # reject it at the pre-check and must install from the local tree.
+        monkeypatch.setattr(engine_script, "detect_release", lambda: "R2019a")
+        monkeypatch.setenv("MATLAB_MCP_VENDOR", "1")
+        monkeypatch.setenv("MATLABROOT", "/opt/matlab/R2019a")
+        calls = []
+        monkeypatch.setattr(
+            engine_script, "_run_pip_install", lambda args: calls.append(args)
+        )
+        assert engine_script.main() == 0
+        assert calls == [["/opt/matlab/R2019a/extern/engines/python"]]
+        assert "ERROR" not in capsys.readouterr().out
+
+
+class TestMainDoubleFailure:
+    def test_online_then_offline_failure_prints_clean_error(self, monkeypatch, capsys):
+        # Online install fails, the offline fallback also fails with a
+        # CalledProcessError. main() must catch it and print a clean ERROR
+        # line (return 1), not leak a raw traceback.
+        monkeypatch.setattr(engine_script, "detect_release", lambda: "R2024b")
+        monkeypatch.setenv("MATLABROOT", "/opt/matlab/R2024b")
+
+        def always_fail(args):
+            raise subprocess.CalledProcessError(returncode=1, cmd=args)
+
+        monkeypatch.setattr(engine_script, "_run_pip_install", always_fail)
+        assert engine_script.main() == 1
+        assert "ERROR:" in capsys.readouterr().out

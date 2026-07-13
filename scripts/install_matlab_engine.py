@@ -397,17 +397,22 @@ def main() -> int:
         )
         return 1
 
-    try:
-        spec = resolve_engine_spec(release)
-    except ValueError as exc:
-        print(f"ERROR: {exc}")
-        return 1
-
-    print(f"Detected MATLAB release: {release} -> {spec}")
+    if _is_offline_forced():
+        # The offline/vendored path builds from the local MATLAB tree and never
+        # consults the whitelist, so skip the resolve_engine_spec pre-check —
+        # an as-yet-unwhitelisted release can still install offline.
+        print(f"Detected MATLAB release: {release} -> offline install from local tree")
+    else:
+        try:
+            spec = resolve_engine_spec(release)
+        except ValueError as exc:
+            print(f"ERROR: {exc}")
+            return 1
+        print(f"Detected MATLAB release: {release} -> {spec}")
 
     try:
         install_engine(release=release)
-    except (RuntimeError, ValueError) as exc:
+    except (RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"ERROR: {exc}")
         return 1
 
