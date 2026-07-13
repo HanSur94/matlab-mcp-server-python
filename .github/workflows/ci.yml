@@ -195,6 +195,21 @@ jobs:
         run: |
           call .venv\Scripts\activate.bat
           python -c "from matlab_mcp.server import main; print('OK: server module loads')"
+      - name: Real MATLAB release-detection path runs on Windows (no MATLAB)
+        shell: pwsh
+        run: |
+          # Exercises the real winreg + filesystem-glob detection on an actual
+          # Windows runner with no MATLAB installed — the platform-specific code
+          # path that mocked unit tests can't cover (this is where the R20??
+          # glob bug lived). Must return "no release" without raising.
+          .\.venv\Scripts\python.exe -c @"
+          import sys; sys.path.insert(0, 'scripts')
+          import install_matlab_engine as m
+          rel = m.detect_release()
+          print('detect_release ->', rel)
+          assert rel is None, f'expected None on a MATLAB-less runner, got {rel!r}'
+          print('OK: real winreg+glob detection is clean on Windows')
+          "@
 
   test-macos:
     needs: lint
@@ -274,6 +289,19 @@ jobs:
       - name: Assert server imports engine-free
         run: |
           pixi run python -c "from matlab_mcp.server import main; print('OK: pixi engine-free import')"
+      - name: install-engine reports no MATLAB cleanly (real detection path, no license)
+        run: |
+          # The runner has no MATLAB, so `pixi run install-engine` must detect
+          # that, error clearly, and exit non-zero WITHOUT attempting a pip
+          # install — exercising the real release-detection code on Linux
+          # (the glob/registry path that a mocked unit test cannot cover).
+          set +e
+          OUT=$(pixi run install-engine 2>&1); CODE=$?
+          set -e
+          echo "$OUT"
+          test "$CODE" -ne 0 || { echo "::error::install-engine exited 0 with no MATLAB present"; exit 1; }
+          echo "$OUT" | grep -qi "matlab" || { echo "::error::no-MATLAB error message should mention MATLAB"; exit 1; }
+          echo "OK: install-engine reported no MATLAB cleanly (exit $CODE)"
 
   integration-test:
     needs: lint
