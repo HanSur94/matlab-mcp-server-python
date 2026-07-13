@@ -25,12 +25,20 @@ See: .planning/PROJECT.md (updated 2026-04-01)
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Status: Plan 07-05 complete
-Last activity: 2026-04-03
+Phase: 08
+Plan: 10/10 complete
+Status: Executed — verification human_needed (deferred to user's Windows/MATLAB/Docker environment)
+Last activity: 2026-07-13
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 80%
+
+## Deferred Verification
+
+| Phase | State | Resume |
+|-------|-------|--------|
+| 08 | verification_deferred_human | /gsd-verify-work 8 (after the manual Win10/MATLAB/Docker items in 08-VERIFICATION.md pass) |
+
+**Phase 08 executed:** 10/10 plans, 38 commits, full test suite 944 passed on fastmcp 3.4.4 (pixi env). Code review found + fixed 2 real bugs (dead MATLAB-detection glob `R20??`→`R20*`; generic CI building the licensed image). All here-checkable truths pass; 4 items await the user's real Windows/MATLAB/Docker-license environment. Minor open follow-up: wiki Architecture/FAQ/Home/Troubleshooting still say "MATLAB 2020b+" (08-09 scoped its fix to Installation.md).
 
 ## Performance Metrics
 
