@@ -5,6 +5,11 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [dependencies]
 python = ">=3.10,<3.13"
+# pip is required in the environment so the `install-engine` task can run
+# `python -m pip install matlabengine==<release>` — pixi/conda envs do not
+# ship pip by default, and without it `pixi run install-engine` fails with
+# "No module named pip" even when MATLAB is present.
+pip = "*"
 
 [pypi-dependencies]
 # matlab-mcp-python installed editable from the repo root; "monitoring" extra
