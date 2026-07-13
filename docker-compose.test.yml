@@ -3,10 +3,12 @@
 # Simulates two-machine scenario: PC A (client) connecting to PC B (server)
 # over a Docker network with bearer auth.
 #
-# Builds the same mathworks/matlab image as docker-compose.yml (see Dockerfile),
-# but runs the server in --inspect mode (engine-free) since generic CI has no
-# MATLAB license and cannot start real engines. The real image build/run is
-# gated behind a MATLAB-license-available CI flag — see 08-VALIDATION.md.
+# The server builds the same mathworks/matlab image as docker-compose.yml (see
+# Dockerfile) but runs in --inspect mode (engine-free) since generic CI has no
+# MATLAB license and cannot start real engines. The client is a stock
+# python:3.12-slim image — it never builds the licensed image. The real image
+# build/run is gated behind a MATLAB-license-available CI flag — see
+# 08-VALIDATION.md.
 #
 # Usage:
 #   docker compose -f docker-compose.test.yml up --build --exit-code-from client
@@ -33,7 +35,10 @@ services:
       start_period: 5s
 
   client:
-    build: .
+    # A stock Python image — the client only pip-installs mcp/httpx and runs
+    # remote_client.py, so it must NOT build the multi-GB licensed
+    # mathworks/matlab image (that is the server's job).
+    image: python:3.12-slim
     entrypoint:
       - "sh"
       - "-c"

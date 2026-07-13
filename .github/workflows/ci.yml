@@ -297,8 +297,15 @@ jobs:
       - run: pip install -e ".[dev,monitoring]" pytest-timeout
       - run: pytest tests/test_mcp_integration.py -v -m integration --timeout=60
 
+  # Gated: `up --build` builds the multi-GB licensed mathworks/matlab server
+  # image and starts it, which generic CI has no license for. Only runs when a
+  # MATLAB_LICENSE_AVAILABLE repo variable is set (e.g. a self-hosted runner
+  # with a network license manager) — same gate as the `docker` job's real
+  # build. License-free `docker compose config` validation of both compose
+  # files already runs unconditionally in the `docker` job.
   remote-integration-test:
     needs: lint
+    if: ${{ vars.MATLAB_LICENSE_AVAILABLE == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
