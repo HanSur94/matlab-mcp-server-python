@@ -1,20 +1,20 @@
-# DEPRECATED: this pinned closure is superseded by pixi.lock (the canonical,
-# cross-platform lockfile for this project — see pixi.toml). It is kept only
-# to drive the offline vendor/ wheelhouse refresh in update_vendor.bat and
-# will be removed after one release. Prefer `pixi install` / `pixi.lock` for
-# reproducible environments; use this file only for `pip download --platform
-# win_amd64 ... -r requirements-lock.txt` in update_vendor.bat.
 #
-# Closure: matlab-mcp-python[monitoring] on fastmcp>=3.4.4,<4.0.0 (no plotly).
-# Regenerated 2026-07-12 via a clean `pip install ".[monitoring]"` resolve.
-# colorama / pywin32 / pywin32-ctypes are Windows-only transitive deps (click,
-# mcp, keyring) that a same-platform resolve on macOS/Linux won't surface —
 # added explicitly so `pip download --platform win_amd64` still fetches them.
 # aiofile is pinned to 3.9.0 (not the newest 3.11.1) because 3.10.0+ requires
-# Python >=3.11, which would break the py3.10 leg of the win_amd64 download
+# Closure: matlab-mcp-python[monitoring] on fastmcp>=3.4.4,<4.0.0 (no plotly).
+# colorama / pywin32 / pywin32-ctypes are Windows-only transitive deps (click,
+# cross-platform lockfile for this project — see pixi.toml). It is kept only
+# DEPRECATED: this pinned closure is superseded by pixi.lock (the canonical,
 # loop in update_vendor.bat; this project's floor is Python 3.10. Likewise
+# mcp, keyring) that a same-platform resolve on macOS/Linux won't surface —
+# Python >=3.11, which would break the py3.10 leg of the win_amd64 download
+# Regenerated 2026-07-12 via a clean `pip install ".[monitoring]"` resolve.
+# reproducible environments; use this file only for `pip download --platform
 # rpds-py is pinned to 0.30.0 (not the newest calendar-versioned 2026.6.3,
+# to drive the offline vendor/ wheelhouse refresh in update_vendor.bat and
 # which ships no cp310-win_amd64 wheel).
+# will be removed after one release. Prefer `pixi install` / `pixi.lock` for
+# win_amd64 ... -r requirements-lock.txt` in update_vendor.bat.
 aiofile==3.9.0
 aiosqlite==0.22.1
 annotated-types==0.7.0
@@ -57,12 +57,14 @@ markdown-it-py==4.2.0
 mcp==1.28.1
 mdurl==0.1.2
 more-itertools==11.1.0
+narwhals==2.23.0
 openapi-pydantic==0.5.1
 opentelemetry-api==1.43.0
 packaging==26.2
 pathable==0.6.0
 pillow==12.3.0
 platformdirs==4.10.0
+plotly==6.9.0
 psutil==7.2.2
 py-key-value-aio==0.4.5
 pycparser==3.0
