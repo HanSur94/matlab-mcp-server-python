@@ -260,6 +260,10 @@ if %errorlevel% equ 0 (
     ) else (
         echo  Detecting installed MATLAB release and installing the matching matlabengine...
     )
+    REM Export the release token we already detected so the script uses it
+    REM directly instead of re-detecting. Skip the "custom" sentinel so the
+    REM script self-detects when the user supplied a path, not a release.
+    if /i not "!MATLAB_VER!"=="custom" set "MATLAB_RELEASE=!MATLAB_VER!"
     python "%~dp0scripts\install_matlab_engine.py"
     if !errorlevel! neq 0 (
         echo.
